@@ -22,6 +22,12 @@ class RankedCandidate(BaseModel):
     experience_score: float = Field(..., description="Experience match score against JD (0.0 to 100.0).")
     matched_skills: List[str] = Field(default_factory=list, description="Skill groups matched.")
     missing_skills: List[str] = Field(default_factory=list, description="Skill groups missing.")
+    career_trajectory_score: Optional[float] = Field(None, description="Career trajectory progression score (0.0 to 100.0).")
+    potential_score: Optional[float] = Field(None, description="Future potential score (0.0 to 100.0).")
+    is_hidden_gem: Optional[bool] = Field(None, description="Is the candidate identified as a hidden gem.")
+    explanation: Optional[str] = Field(None, description="Recruiter-friendly summary explanation of the ranking.")
+    strengths: List[str] = Field(default_factory=list, description="List of candidate's matched strengths.")
+    concerns: List[str] = Field(default_factory=list, description="List of concerns or areas to probe.")
 
 
 class RankingEngine:
@@ -64,7 +70,8 @@ class RankingEngine:
         batch_size: int = 32,
     ) -> List[RankedCandidate]:
         """
-        Ranks a list of candidates against the job description using the 40-30-30 formula.
+        Ranks a list of candidates against the job description using a hybrid scoring formula:
+        35% Semantic Similarity, 30% Skill Coverage, 15% Experience score, 10% Trajectory, and 10% Potential.
 
         Args:
             candidates: List of Candidate objects.
@@ -92,27 +99,39 @@ class RankingEngine:
         # 3. Calculate scores and weights for each candidate
         for i, candidate in enumerate(candidates):
             try:
-                # A. Semantic similarity (40% weight)
+                # A. Semantic similarity (35% weight)
                 cand_emb = candidate_embeddings[i]
                 sim = self._cosine_similarity(jd_embedding, cand_emb)
                 # Scale cosine similarity [-1.0, 1.0] to [0.0, 100.0]
                 semantic_score = max(0.0, sim * 100.0)
 
-                # B. Skill score (30% weight)
-                skill_report = SkillScorer.calculate_match(candidate)
+                # B. Skill score (30% weight) - Dynamic match based on actual JD text
+                skill_report = SkillScorer.calculate_match(candidate, jd_text=jd_text)
                 skill_score = skill_report["score"]
                 matched_skills = skill_report["matched_skills"]
                 missing_skills = skill_report["missing_skills"]
 
-                # C. Experience score (30% weight)
+                # C. Experience score (15% weight)
                 experience_score = ExperienceScorer.calculate_score(candidate)
 
+                # D. Career trajectory score (10% weight)
+                from backend.services.career_trajectory import CareerTrajectoryScorer
+                trajectory_report = CareerTrajectoryScorer.calculate_score(candidate)
+                trajectory_score = float(trajectory_report.get("career_trajectory_score", 0.0))
+
+                # E. Potential score (10% weight)
+                from backend.services.potential_score import PotentialScorer
+                potential_report = PotentialScorer.calculate_potential(candidate)
+                potential_score = float(potential_report.get("potential_score", 0.0))
+
                 # D. Combine into final weighted score
-                # 40% semantic similarity, 30% skill, 30% experience
+                # 35% semantic similarity, 30% skill, 15% experience, 10% trajectory, 10% potential
                 final_score = (
-                    (0.40 * semantic_score)
+                    (0.35 * semantic_score)
                     + (0.30 * skill_score)
-                    + (0.30 * experience_score)
+                    + (0.15 * experience_score)
+                    + (0.10 * trajectory_score)
+                    + (0.10 * potential_score)
                 )
                 final_score = round(final_score, 2)
 
@@ -125,6 +144,8 @@ class RankingEngine:
                         experience_score=experience_score,
                         matched_skills=matched_skills,
                         missing_skills=missing_skills,
+                        career_trajectory_score=trajectory_score,
+                        potential_score=potential_score,
                     )
                 )
             except Exception as e:
@@ -137,9 +158,36 @@ class RankingEngine:
                         semantic_score=0.0,
                         skill_score=0.0,
                         experience_score=0.0,
+                        career_trajectory_score=0.0,
+                        potential_score=0.0,
                     )
                 )
 
         # 4. Sort ranked candidates (highest final_score first)
         ranked_list.sort(key=lambda x: x.final_score, reverse=True)
+
+        # 5. Populate ranks, explanations, and hidden gem flags
+        candidate_map = {c.candidate_id: c for c in candidates}
+        for rank_idx, rc in enumerate(ranked_list, start=1):
+            cand_model = candidate_map.get(rc.candidate_id)
+            if not cand_model or rc.final_score == 0.0:
+                continue
+
+            try:
+                # Detect hidden gem status
+                from backend.services.hidden_gem_detector import HiddenGemDetector
+                gem_report = HiddenGemDetector.detect(cand_model, jd_text, rc.final_score)
+                rc.is_hidden_gem = gem_report.get("is_hidden_gem", False)
+
+                # Generate explanation
+                from backend.services.explanation_engine import ExplanationEngine
+                explanation_report = ExplanationEngine.generate_explanation(
+                    cand_model, jd_text, rank_idx, rc.final_score
+                )
+                rc.explanation = explanation_report.get("explanation", "")
+                rc.strengths = explanation_report.get("strengths", [])
+                rc.concerns = explanation_report.get("concerns", [])
+            except Exception as e:
+                logger.error(f"Error generating explanation for candidate {rc.candidate_id}: {e}")
+
         return ranked_list

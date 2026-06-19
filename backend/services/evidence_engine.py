@@ -49,7 +49,7 @@ class EvidenceEngine:
             if name.lower().strip() in jd_skills:
                 matched_individual.append(name)
 
-        skill_report = SkillScorer.calculate_match(candidate)
+        skill_report = SkillScorer.calculate_match(candidate, jd_text=jd_text)
         matched_groups = skill_report.get("matched_skills", [])
         
         # Combine and deduplicate skills

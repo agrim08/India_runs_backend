@@ -56,22 +56,26 @@ class RetrievalEngine:
             # Calculate Domain Fit
             domain_score = DomainScoreEngine.calculate_domain_fit(jd.domain, career_history)
             
-            # Calculate Skill, Experience, and Trajectory scores using candidate parser
+            # Calculate Skill, Experience, Trajectory, and Potential scores using candidate parser
             try:
                 candidate_model = CandidateParser.parse_dict(profile_data)
-                skill_report = SkillScorer.calculate_match(candidate_model)
+                skill_report = SkillScorer.calculate_match(candidate_model, jd_text=jd_semantic_string)
                 skill_score = skill_report["score"]
                 experience_score = ExperienceScorer.calculate_score(candidate_model)
                 trajectory_report = CareerTrajectoryScorer.calculate_score(candidate_model)
                 trajectory_score = float(trajectory_report.get("career_trajectory_score", 0.0))
+                from backend.services.potential_score import PotentialScorer
+                potential_report = PotentialScorer.calculate_potential(candidate_model)
+                potential_score = float(potential_report.get("potential_score", 0.0))
             except Exception as e:
                 logger.error(f"Failed to parse candidate model for scoring: {e}")
                 skill_score = 0.0
                 experience_score = 0.0
                 trajectory_score = 0.0
+                potential_score = 0.0
 
-            # Replace the placeholder with the combined Skill, Experience, and Trajectory scores (50% weight total)
-            other_score = (skill_score + experience_score + trajectory_score) / 3.0
+            # Replace the placeholder with the combined Skill, Experience, Trajectory, and Potential scores (50% weight total)
+            other_score = (skill_score + experience_score + trajectory_score + potential_score) / 4.0
             
             final_score = (
                 (0.40 * semantic_score) + 

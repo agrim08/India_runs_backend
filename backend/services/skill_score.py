@@ -50,12 +50,13 @@ class SkillScorer:
     """
 
     @classmethod
-    def calculate_match(cls, candidate: Candidate) -> dict:
+    def calculate_match(cls, candidate: Candidate, jd_text: Optional[str] = None) -> dict:
         """
         Calculates a percentage match score and lists matched/missing categories.
 
         Args:
             candidate: Validated Candidate model instance.
+            jd_text: Optional Job Description text.
 
         Returns:
             Dictionary containing:
@@ -71,38 +72,86 @@ class SkillScorer:
         matched_skills: List[str] = []
         missing_skills: List[str] = []
 
-        # 1. Evaluate Required Skills (Weight: 75% of total score, 18.75% each)
-        required_matches = 0
-        for group_name, synonyms in REQUIRED_SKILL_GROUPS.items():
-            norm_synonyms = {
-                normalize_skill_name(s).lower().strip() for s in synonyms
-            }
-            if candidate_skills.intersection(norm_synonyms):
-                required_matches += 1
-                matched_skills.append(group_name)
+        if jd_text:
+            from backend.services.missing_skills import MissingSkillsAnalyzer
+            analysis = MissingSkillsAnalyzer.analyze_missing_skills(candidate, jd_text)
+            matched_skills = analysis.get("matched_skills", [])
+            missing_skills = analysis.get("missing_skills", [])
+            critical_missing = analysis.get("critical_missing_skills", [])
+            optional_missing = analysis.get("optional_missing_skills", [])
+            
+            # Map matched skills to check which ones are critical vs optional based on REQUIRED_SKILL_GROUPS
+            critical_matched = []
+            optional_matched = []
+            
+            # Let's classify all matched skills
+            critical_terms = set()
+            for group_name, synonyms in REQUIRED_SKILL_GROUPS.items():
+                critical_terms.add(group_name.lower().strip())
+                for syn in synonyms:
+                    critical_terms.add(normalize_skill_name(syn).lower().strip())
+                    
+            for skill in matched_skills:
+                skill_norm = normalize_skill_name(skill).lower().strip()
+                is_critical = False
+                if skill_norm in critical_terms:
+                    is_critical = True
+                else:
+                    for term in critical_terms:
+                        if term in skill_norm or skill_norm in term:
+                            is_critical = True
+                            break
+                if is_critical:
+                    critical_matched.append(skill)
+                else:
+                    optional_matched.append(skill)
+            
+            num_critical = len(critical_matched) + len(critical_missing)
+            num_optional = len(optional_matched) + len(optional_missing)
+            
+            if num_critical > 0 and num_optional > 0:
+                critical_score = (len(critical_matched) / num_critical) * 75.0
+                optional_score = (len(optional_matched) / num_optional) * 25.0
+                total_score = round(critical_score + optional_score, 2)
+            elif num_critical > 0:
+                total_score = round((len(critical_matched) / num_critical) * 100.0, 2)
+            elif num_optional > 0:
+                total_score = round((len(optional_matched) / num_optional) * 100.0, 2)
             else:
-                missing_skills.append(group_name)
+                total_score = 0.0
+        else:
+            # 1. Evaluate Required Skills (Weight: 75% of total score, 18.75% each)
+            required_matches = 0
+            for group_name, synonyms in REQUIRED_SKILL_GROUPS.items():
+                norm_synonyms = {
+                    normalize_skill_name(s).lower().strip() for s in synonyms
+                }
+                if candidate_skills.intersection(norm_synonyms):
+                    required_matches += 1
+                    matched_skills.append(group_name)
+                else:
+                    missing_skills.append(group_name)
 
-        # 2. Evaluate Preferred Skills (Weight: 25% of total score, 8.33% each)
-        preferred_matches = 0
-        for group_name, synonyms in PREFERRED_SKILL_GROUPS.items():
-            norm_synonyms = {
-                normalize_skill_name(s).lower().strip() for s in synonyms
-            }
-            if candidate_skills.intersection(norm_synonyms):
-                preferred_matches += 1
-                matched_skills.append(group_name)
-            else:
-                missing_skills.append(group_name)
+            # 2. Evaluate Preferred Skills (Weight: 25% of total score, 8.33% each)
+            preferred_matches = 0
+            for group_name, synonyms in PREFERRED_SKILL_GROUPS.items():
+                norm_synonyms = {
+                    normalize_skill_name(s).lower().strip() for s in synonyms
+                }
+                if candidate_skills.intersection(norm_synonyms):
+                    preferred_matches += 1
+                    matched_skills.append(group_name)
+                else:
+                    missing_skills.append(group_name)
 
-        # 3. Calculate percentage score
-        num_required = len(REQUIRED_SKILL_GROUPS)
-        num_preferred = len(PREFERRED_SKILL_GROUPS)
+            # 3. Calculate percentage score
+            num_required = len(REQUIRED_SKILL_GROUPS)
+            num_preferred = len(PREFERRED_SKILL_GROUPS)
 
-        required_percentage = (required_matches / num_required) * 75.0
-        preferred_percentage = (preferred_matches / num_preferred) * 25.0
+            required_percentage = (required_matches / num_required) * 75.0
+            preferred_percentage = (preferred_matches / num_preferred) * 25.0
 
-        total_score = round(required_percentage + preferred_percentage, 2)
+            total_score = round(required_percentage + preferred_percentage, 2)
 
         return {
             "score": total_score,
