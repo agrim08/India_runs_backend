@@ -1,5 +1,7 @@
 import logging
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Optional
+from google.genai import types
+from backend.app.utils.gemini_client import client, MODEL_NAME
 from backend.models.candidate import Candidate
 from backend.services.skills_extractor import normalize_skill_name
 

@@ -1,238 +1,261 @@
+'use client';
+
+import * as React from 'react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { motion } from 'framer-motion';
 import {
-  BrainCircuit,
-  Compass,
-  TrendingUp,
-  FileSearch2,
-  Users2,
-  Sparkles,
-  CheckCircle2,
+  UploadSimple,
+  FileText,
+  Trophy,
+  Lightning,
+  Brain,
+  Scales,
   ArrowRight,
-  Search
-} from 'lucide-react';
+} from '@phosphor-icons/react';
+
+import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
+import { DotPattern } from '@/components/ui/dot-pattern';
+import { Marquee } from '@/components/ui/marquee';
+import { BlurFade } from '@/components/ui/blur-fade';
+import { AnimatedShinyText } from '@/components/ui/animated-shiny-text';
+import { RetroGrid } from '@/components/ui/retro-grid';
+import { MagicCard } from '@/components/ui/magic-card';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+
+const features = [
+  {
+    tag: 'PARSE',
+    title: 'Resume parsing',
+    description: 'Raw resumes become structured candidate profiles in seconds. No manual data entry.',
+    icon: UploadSimple,
+    span: 'md:col-span-2 md:row-span-1',
+    upcoming: true,
+  },
+  {
+    tag: 'ANALYZE',
+    title: 'Job description analysis',
+    description: 'We read seniority, domain, and hidden requirements most ATS tools miss.',
+    icon: FileText,
+    span: 'md:col-span-1 md:row-span-2',
+  },
+  {
+    tag: 'RANK',
+    title: 'Candidate ranking',
+    description: 'Semantic matching ranks by real capability, not keyword density.',
+    icon: Trophy,
+    span: 'md:col-span-1 md:row-span-1',
+  },
+  {
+    tag: 'EXPLAIN',
+    title: 'Match reasoning',
+    description: 'Every recommendation comes with a clear breakdown of why.',
+    icon: Lightning,
+    span: 'md:col-span-1 md:row-span-1',
+  },
+  {
+    tag: 'PREP',
+    title: 'Interview copilot',
+    description: 'Tailored interview guides built around each candidate\'s gaps.',
+    icon: Brain,
+    span: 'md:col-span-1 md:row-span-1',
+  },
+  {
+    tag: 'COMPARE',
+    title: 'Risk profiling',
+    description: 'Flight risk, overqualification, and gaps flagged automatically.',
+    icon: Scales,
+    span: 'md:col-span-2 md:row-span-1',
+  },
+];
+
+const integrations = [
+  'Golang', 'React', 'Python', 'Next.js', 'Supabase', 'PostgreSQL',
+  'FastAPI', 'TailwindCSS', 'TypeScript', 'Vector DB',
+];
 
 export default function LandingPage() {
-  const features = [
-    {
-      icon: Search,
-      title: 'Semantic Candidate Matching',
-      description: 'Go beyond simple keyword matching. Our AI reads between the lines of resumes to evaluate semantic context, domain expertise, and core competencies.',
-      color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-    },
-    {
-      icon: Sparkles,
-      title: 'Hidden Gem Detection',
-      description: 'Discover candidates with unconventional career histories or self-taught skills who have a high probability of success based on underlying potential.',
-      color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-    },
-    {
-      icon: TrendingUp,
-      title: 'Career Trajectory Analysis',
-      description: 'Predict career growth potential, promotion likelihood, and role transition feasibility by analyzing millions of professional career paths.',
-      color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-    },
-    {
-      icon: FileSearch2,
-      title: 'Explainable AI Rankings',
-      description: 'Get clear, natural language summaries explaining why a candidate is ranked high or low, eliminating black-box bias in candidate filtering.',
-      color: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
-    },
-  ];
-
-  const stats = [
-    { value: '250,000+', label: 'Candidates Analyzed', description: 'Resumes parsed & indexed', icon: Users2, color: 'text-blue-500' },
-    { value: '8,420+', label: 'Hidden Gems Detected', description: 'High-potential hires unearthed', icon: Compass, color: 'text-amber-500' },
-    { value: '96.4%', label: 'Ranking Accuracy', description: 'Match alignment rate', icon: CheckCircle2, color: 'text-emerald-500' },
-  ];
-
   return (
-    <div className="flex flex-col min-h-screen bg-background">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden py-20 md:py-32 border-b border-border/40 bg-linear-to-b from-muted/50 to-background">
-        <div className="absolute inset-0 bg-radial-gradient from-primary/5 to-transparent pointer-events-none" />
-        <div className="container mx-auto px-6 max-w-7xl relative z-10 flex flex-col items-center text-center">
-          
-          {/* Badge Alert */}
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3.5 py-1 text-xs font-semibold text-primary mb-6 animate-pulse">
-            <Sparkles className="h-3.5 w-3.5" />
-            AI-Powered Recruiting Engine v1.0
-          </div>
+    <div className="flex flex-col min-h-screen bg-background text-foreground overflow-hidden">
+      {/* HERO */}
+      <section className="relative flex flex-col items-center justify-center text-center px-6 pt-32 pb-24 min-h-[90vh]">
+        <DotPattern
+          className="absolute inset-0 [mask-image:radial-gradient(420px_circle_at_center,white,transparent)] opacity-40"
+          width={24}
+          height={24}
+        />
 
-          <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl max-w-4xl leading-tight">
-            Next-Gen Candidate Intelligence for{' '}
-            <span className="bg-gradient-to-r from-primary via-indigo-500 to-violet-500 bg-clip-text text-transparent">
-              Smart Recruiters
-            </span>
+        <BlurFade delay={0.05}>
+          <div className="group relative mb-8 inline-flex items-center rounded-full border border-border/60 bg-card/50 px-4 py-1.5 backdrop-blur-md">
+            <AnimatedShinyText className="text-xs font-mono uppercase tracking-widest">
+              AI Recruiting, Reasoned
+            </AnimatedShinyText>
+          </div>
+        </BlurFade>
+
+        <BlurFade delay={0.15}>
+          <h1 className="text-5xl md:text-7xl font-bold tracking-tight max-w-3xl leading-[1.05]">
+            Hire on signal, not resumes.
           </h1>
+        </BlurFade>
 
-          <p className="mt-6 text-lg text-muted-foreground max-w-2xl leading-relaxed">
-            Upload candidate resumes and analyze Job Descriptions in seconds. 
-            Evaluate talent based on career trajectory, semantic skillset matching, 
-            and explainable ranking parameters.
+        <BlurFade delay={0.25}>
+          <p className="mt-5 text-base md:text-lg text-muted-foreground max-w-md">
+            Explainable AI ranking for serious talent teams.
           </p>
+        </BlurFade>
 
-          <div className="mt-10 flex flex-col sm:flex-row gap-4 items-center justify-center w-full max-w-md">
-            <Button nativeButton={false} size="lg" className="w-full sm:w-auto px-8 cursor-pointer rounded-xl font-semibold shadow-lg shadow-primary/25" render={<Link href="/rank" className="flex items-center gap-2" />}>
-              Start Ranking <ArrowRight className="h-4 w-4" />
-            </Button>
-            <Button nativeButton={false} size="lg" variant="outline" className="w-full sm:w-auto px-8 cursor-pointer rounded-xl font-semibold border-border/60 hover:bg-muted" render={<Link href="/jd-analysis" />}>
-              Analyze JD
-            </Button>
+        <BlurFade delay={0.35}>
+          <div className="mt-10 relative">
+            <Link href="/jd-analysis">
+              <InteractiveHoverButton className="px-8 py-4 font-semibold text-lg">
+                Get started
+              </InteractiveHoverButton>
+            </Link>
           </div>
-
-          {/* Abstract Screen Mockup Preview */}
-          <div className="mt-16 w-full max-w-5xl rounded-2xl border border-border/40 bg-card p-2 shadow-2xl shadow-primary/5">
-            <div className="rounded-xl border border-border/40 bg-background/50 overflow-hidden flex flex-col">
-              {/* Mock Window Bar */}
-              <div className="flex items-center justify-between px-4 py-3 bg-muted/30 border-b border-border/40">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-destructive/40" />
-                  <div className="w-3 h-3 rounded-full bg-amber-500/40" />
-                  <div className="w-3 h-3 rounded-full bg-emerald-500/40" />
-                </div>
-                <div className="text-[10px] text-muted-foreground font-mono bg-muted/60 px-4 py-0.5 rounded-md border border-border/40">
-                  app.talentintel.ai/rank-candidates
-                </div>
-                <div className="w-12" />
-              </div>
-              {/* Mock Dashboard Layout */}
-              <div className="p-6 grid md:grid-cols-3 gap-6 bg-linear-to-b from-background to-muted/20 text-left">
-                <div className="md:col-span-2 space-y-4">
-                  <div className="flex items-center justify-between border-b border-border/40 pb-3">
-                    <div className="space-y-1">
-                      <div className="h-4 w-28 bg-foreground/15 rounded-md" />
-                      <div className="h-3 w-40 bg-muted-foreground/15 rounded-md" />
-                    </div>
-                    <div className="h-7 w-20 bg-primary/10 border border-primary/20 rounded-lg" />
-                  </div>
-                  {/* Candidate List Mocks */}
-                  <div className="space-y-2.5">
-                    {[1, 2, 3].map((item) => (
-                      <div key={item} className="p-3 border border-border/30 bg-card rounded-xl flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center font-bold text-xs">
-                            C{item}
-                          </div>
-                          <div className="space-y-1.5">
-                            <div className="h-3.5 w-32 bg-foreground/15 rounded-sm" />
-                            <div className="h-2.5 w-48 bg-muted-foreground/15 rounded-sm" />
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="h-2 w-16 bg-muted rounded-full overflow-hidden">
-                            <div className="bg-primary h-full" style={{ width: `${95 - item * 8}%` }} />
-                          </div>
-                          <div className="text-xs font-bold text-right w-8">{95 - item * 8}%</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {/* Right JD Analysis Sidebar Mock */}
-                <div className="border border-border/40 rounded-xl bg-card/60 p-4 space-y-4">
-                  <div className="h-4 w-24 bg-foreground/15 rounded-md" />
-                  <div className="space-y-2">
-                    <div className="h-2.5 w-full bg-muted-foreground/15 rounded-sm" />
-                    <div className="h-2.5 w-full bg-muted-foreground/15 rounded-sm" />
-                    <div className="h-2.5 w-3/4 bg-muted-foreground/15 rounded-sm" />
-                  </div>
-                  <div className="border-t border-border/40 pt-3 space-y-3">
-                    <div className="h-3 w-16 bg-foreground/15 rounded-sm" />
-                    <div className="flex flex-wrap gap-1.5">
-                      <div className="h-5 w-16 bg-blue-500/10 rounded-md border border-blue-500/20" />
-                      <div className="h-5 w-20 bg-emerald-500/10 rounded-md border border-emerald-500/20" />
-                      <div className="h-5 w-12 bg-violet-500/10 rounded-md border border-violet-500/20" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
+        </BlurFade>
       </section>
 
-      {/* Feature Section */}
-      <section className="py-20 md:py-28 border-b border-border/40 bg-card/30">
-        <div className="container mx-auto px-6 max-w-7xl">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              Deep Candidate Analysis Features
-            </h2>
-            <p className="mt-4 text-muted-foreground">
-              Evaluate candidates using state-of-the-art career trajectory neural architectures 
-              and natural language explainability indexes.
-            </p>
-          </div>
+      {/* MARQUEE */}
+      <section className="border-y border-border/40 bg-card/30 py-6 relative">
+        <Marquee className="[--duration:30s]" pauseOnHover>
+          {integrations.map((tech) => (
+            <span
+              key={tech}
+              className="font-mono text-xs uppercase tracking-widest text-muted-foreground/60 mx-8"
+            >
+              {tech}
+            </span>
+          ))}
+        </Marquee>
+      </section>
 
-          <div className="grid gap-8 md:grid-cols-2">
+      {/* FEATURES — BENTO GRID */}
+      <section className="py-28 md:py-36 px-6">
+        <div className="container mx-auto max-w-5xl">
+          <BlurFade>
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-tight mb-12 max-w-md">
+              One pipeline, six decisions made for you.
+            </h2>
+          </BlurFade>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 auto-rows-[minmax(200px,auto)]">
             {features.map((feature, idx) => {
               const Icon = feature.icon;
               return (
-                <div
-                  key={idx}
-                  className="p-8 rounded-2xl border border-border/40 bg-card hover:shadow-lg transition-all duration-300 flex items-start gap-5 group"
-                >
-                  <div className={`p-3.5 rounded-xl ${feature.color} shrink-0 group-hover:scale-105 transition-transform`}>
-                    <Icon className="h-6 w-6" />
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-bold text-foreground">{feature.title}</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      {feature.description}
-                    </p>
-                  </div>
-                </div>
+                <BlurFade key={feature.title} delay={0.05 * idx} inView className={feature.span}>
+                  <MagicCard
+                    mode="orb"
+                    glowFrom="#2EE6D6"
+                    glowTo="#6b21ef"
+                    className="group relative h-full flex flex-col justify-between overflow-hidden rounded-2xl border border-border/50 bg-card p-6"
+                  >
+                    <div className="flex items-center justify-between mb-8">
+                      <span className="font-mono text-[10px] tracking-[0.2em] text-primary uppercase">
+                        {feature.tag}
+                      </span>
+                      <Icon size={18} weight="bold" className="text-muted-foreground/50 group-hover:text-primary transition-colors" />
+                      {feature.upcoming && (
+                        <span className="absolute top-4 right-4 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/40">
+                          soon
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold mb-1.5">{feature.title}</h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {feature.description}
+                      </p>
+                    </div>
+                  </MagicCard>
+                </BlurFade>
               );
             })}
           </div>
         </div>
       </section>
 
-      {/* Statistics Section */}
-      <section className="py-20 bg-muted/30">
-        <div className="container mx-auto px-6 max-w-7xl">
-          <div className="grid gap-8 md:grid-cols-3">
-            {stats.map((stat, idx) => {
-              const Icon = stat.icon;
-              return (
-                <div
-                  key={idx}
-                  className="rounded-2xl border border-border/40 bg-card p-8 text-center flex flex-col items-center justify-between shadow-xs"
-                >
-                  <div className={`p-3 rounded-full bg-muted ${stat.color} mb-4`}>
-                    <Icon className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <div className="text-4xl font-extrabold tracking-tight">{stat.value}</div>
-                    <div className="text-sm font-semibold text-foreground mt-2">{stat.label}</div>
-                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                      {stat.description}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+      {/* FAQ SECTION */}
+      <section className="py-24 px-6 border-t border-border/40">
+        <div className="container mx-auto max-w-3xl">
+          <BlurFade delay={0.1} inView>
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-12 text-center">
+              Frequently Asked Questions
+            </h2>
+          </BlurFade>
+
+          <BlurFade delay={0.2} inView>
+            <Accordion className="w-full space-y-4">
+              <AccordionItem value="item-1" className="border border-border/50 bg-card px-6 rounded-2xl shadow-sm data-open:shadow-md transition-all">
+                <AccordionTrigger className="hover:no-underline py-6 text-left font-semibold">
+                  How does the semantic parsing differ from standard keyword matching?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground leading-relaxed pb-6 text-sm">
+                  Traditional ATS systems look for exact keyword matches. Our AI understands the context of the entire resume. For example, if a job requires &quot;React&quot;, it knows that a candidate with &quot;Next.js&quot; and &quot;Redux&quot; experience has the necessary underlying skills, even if the exact keyword &quot;React&quot; is missing.
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="item-2" className="border border-border/50 bg-card px-6 rounded-2xl shadow-sm data-open:shadow-md transition-all">
+                <AccordionTrigger className="hover:no-underline py-6 text-left font-semibold">
+                  Can it detect hidden potential or &quot;flight risks&quot;?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground leading-relaxed pb-6 text-sm">
+                  Yes. Our risk profiling engine analyzes career trajectories to flag candidates who might be overqualified or have a history of very short tenures. It also highlights &quot;hidden gems&quot;&mdash;candidates with unconventional backgrounds who exhibit strong foundational skills.
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="item-3" className="border border-border/50 bg-card px-6 rounded-2xl shadow-sm data-open:shadow-md transition-all">
+                <AccordionTrigger className="hover:no-underline py-6 text-left font-semibold">
+                  How does the Interview Copilot work?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground leading-relaxed pb-6 text-sm">
+                  Based on the candidate&apos;s specific gaps identified during the parsing stage, the Copilot generates tailored technical and behavioral questions. This ensures your interview process directly addresses the areas where the candidate needs the most scrutiny.
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </BlurFade>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="mt-auto border-t border-border/40 py-12 bg-background">
-        <div className="container mx-auto px-6 max-w-7xl flex flex-col md:flex-row justify-between items-center gap-6">
+      {/* CTA SECTION */}
+      <section className="relative flex flex-col items-center justify-center text-center px-6 py-32 overflow-hidden border-t border-border/40">
+        <RetroGrid className="opacity-50" />
+
+        <BlurFade delay={0.1} inView>
+          <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-6">
+            Ready to upgrade your hiring?
+          </h2>
+        </BlurFade>
+
+        <BlurFade delay={0.2} inView>
+          <p className="text-lg text-muted-foreground max-w-xl mx-auto mb-10">
+            Stop guessing who the best candidate is. Let our semantic engine do the heavy lifting for you.
+          </p>
+        </BlurFade>
+
+        <BlurFade delay={0.3} inView>
+          <Link href="/jd-analysis" className="relative inline-flex z-10">
+            <InteractiveHoverButton
+              className="px-10 py-4 font-semibold"
+            >
+              Start ranking candidates
+            </InteractiveHoverButton>
+          </Link>
+        </BlurFade>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="border-t border-border/40 py-10 px-6">
+        <div className="container mx-auto max-w-5xl flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
-            <BrainCircuit className="h-5 w-5 text-primary" />
-            <span className="font-bold text-sm">TalentIntel AI</span>
+            <Brain className="h-5 w-5 text-primary" weight="bold" />
+            <span className="font-semibold text-sm">TalentIntel</span>
           </div>
-          <div className="text-center md:text-right space-y-1">
-            <p className="text-xs text-muted-foreground">
-              Built by <span className="font-semibold text-foreground">Team TalentIntel</span> for the AI Recruiter Challenge.
-            </p>
-            <p className="text-[10px] text-muted-foreground">
-              © 2026 Hackathon Project. All rights reserved. Candidate Intelligence Platform.
-            </p>
-          </div>
+          <p className="font-mono text-xs text-muted-foreground/50 uppercase tracking-widest">
+            © 2026 — AI Recruiter Challenge
+          </p>
         </div>
       </footer>
     </div>
