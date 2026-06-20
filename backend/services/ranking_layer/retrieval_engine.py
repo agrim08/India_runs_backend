@@ -2,6 +2,10 @@ import logging
 from backend.models.jd import JobDescription
 from backend.services.semantic_layer.semantic_match import SemanticMatchEngine
 from backend.services.ranking_layer.domain_score import DomainScoreEngine
+from backend.services.candidate_parser import CandidateParser
+from backend.services.skill_score import SkillScorer
+from backend.services.experience_score import ExperienceScorer
+from backend.services.career_trajectory import CareerTrajectoryScorer
 
 logger = logging.getLogger(__name__)
 
@@ -52,12 +56,31 @@ class RetrievalEngine:
             # Calculate Domain Fit
             domain_score = DomainScoreEngine.calculate_domain_fit(jd.domain, career_history)
             
-            # TODO: Integrate other scores (Skill Score, Experience Score, Trajectory Score) 
-            # For now, we simulate the hybrid formula:
+            # Calculate Skill, Experience, Trajectory, and Potential scores using candidate parser
+            try:
+                candidate_model = CandidateParser.parse_dict(profile_data)
+                skill_report = SkillScorer.calculate_match(candidate_model, jd_text=jd_semantic_string)
+                skill_score = skill_report["score"]
+                experience_score = ExperienceScorer.calculate_score(candidate_model)
+                trajectory_report = CareerTrajectoryScorer.calculate_score(candidate_model)
+                trajectory_score = float(trajectory_report.get("career_trajectory_score", 0.0))
+                from backend.services.potential_score import PotentialScorer
+                potential_report = PotentialScorer.calculate_potential(candidate_model)
+                potential_score = float(potential_report.get("potential_score", 0.0))
+            except Exception as e:
+                logger.error(f"Failed to parse candidate model for scoring: {e}")
+                skill_score = 0.0
+                experience_score = 0.0
+                trajectory_score = 0.0
+                potential_score = 0.0
+
+            # Replace the placeholder with the combined Skill, Experience, Trajectory, and Potential scores (50% weight total)
+            other_score = (skill_score + experience_score + trajectory_score + potential_score) / 4.0
+            
             final_score = (
                 (0.40 * semantic_score) + 
                 (0.10 * domain_score) + 
-                (0.50 * 75.0) # Placeholder for other scores until they are built
+                (0.50 * other_score)
             )
             
             ranked_candidates.append({

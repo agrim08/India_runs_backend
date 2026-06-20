@@ -142,10 +142,10 @@ class ExpectedSalaryRange(BaseModel):
     @model_validator(mode="after")
     def validate_salary_range(self) -> "ExpectedSalaryRange":
         """
-        Ensures minimum expected salary does not exceed maximum.
+        Ensures minimum expected salary does not exceed maximum. Swaps them if they are out of order.
         """
         if self.min > self.max:
-            raise ValueError(f"min expected salary ({self.min}) cannot exceed max ({self.max}).")
+            self.min, self.max = self.max, self.min
         return self
 
 
@@ -198,10 +198,10 @@ class RedrobSignals(BaseModel):
     @model_validator(mode="after")
     def validate_activity_dates(self) -> "RedrobSignals":
         """
-        Validates order of platform signup and last active activity.
+        Validates order of platform signup and last active activity. Swaps them if they are out of order.
         """
         if self.signup_date > self.last_active_date:
-            raise ValueError(f"signup_date ({self.signup_date}) cannot be after last_active_date ({self.last_active_date}).")
+            self.signup_date, self.last_active_date = self.last_active_date, self.signup_date
         return self
 
 
