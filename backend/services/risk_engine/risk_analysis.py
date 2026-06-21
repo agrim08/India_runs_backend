@@ -2,6 +2,7 @@ import json
 import logging
 from google.genai import types
 from backend.app.utils.gemini_client import client, MODEL_NAME
+from backend.app.utils.markdown_synthesizer import synthesize_candidate_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +17,10 @@ class RiskEngine:
 You are a meticulous technical recruiter conducting risk analysis.
 Review the candidate's career history and skills against the Job Description.
 Identify red flags such as:
-1. Job hopping (short tenures without progression).
-2. Large employment gaps.
-3. Missing critical skills.
-4. Mismatched seniority levels.
+1. Job hopping: Defined as multiple consecutive roles lasting less than 1.5 years without clear promotions.
+2. Large employment gaps: Defined strictly as any gap between roles exceeding 6 months.
+3. Missing critical skills: Evaluate the candidate's skills against the JD's REQUIRED skills.
+4. Mismatched seniority levels: e.g. A mid-level engineer applying for a Staff/Principal role.
 
 Return ONLY a valid JSON object matching this schema:
 {{
@@ -33,7 +34,7 @@ Job Description:
 {jd_text}
 
 Candidate Profile:
-{json.dumps(candidate_profile, indent=2)}
+{synthesize_candidate_markdown(candidate_profile)}
 """
         response = await client.aio.models.generate_content(
             model=MODEL_NAME,

@@ -38,6 +38,10 @@ export default function JdAnalysisPage() {
       const data = await res.json();
       setExtractedData(data);
       localStorage.setItem('talentIntelJD', fullText);
+      localStorage.setItem('talentIntelJDText', jdText);
+      localStorage.setItem('talentIntelJobTitle', jobTitle);
+      localStorage.setItem('talentIntelExtractedData', JSON.stringify(data));
+      localStorage.setItem('talentIntelAutoRunRank', 'true');
       setAnalyzed(true);
     } catch (e: any) {
       toast.error('Could not reach the AI engine. Check that the backend is running.');
@@ -50,6 +54,23 @@ export default function JdAnalysisPage() {
   const optionalSkills = extractedData?.structured_jd?.nice_to_have_skills || [];
   const minExp = extractedData?.structured_jd?.min_experience_years || 0;
   const role = extractedData?.structured_jd?.role || jobTitle;
+
+  React.useEffect(() => {
+    const savedJdText = localStorage.getItem('talentIntelJDText');
+    const savedJobTitle = localStorage.getItem('talentIntelJobTitle');
+    const savedExtractedData = localStorage.getItem('talentIntelExtractedData');
+
+    if (savedJdText) setJdText(savedJdText);
+    if (savedJobTitle) setJobTitle(savedJobTitle);
+    if (savedExtractedData) {
+      try {
+        setExtractedData(JSON.parse(savedExtractedData));
+        setAnalyzed(true);
+      } catch (e) {
+        console.error('Failed to parse saved extracted data', e);
+      }
+    }
+  }, []);
 
   return (
     <div className="max-w-5xl mx-auto space-y-10">
@@ -64,9 +85,17 @@ export default function JdAnalysisPage() {
 
       {/* Main Form Card */}
       <div className="bg-card border border-border/60 rounded-2xl overflow-hidden shadow-sm">
-        <div className="flex items-center gap-2.5 px-6 py-4 border-b border-border/50 bg-muted/30">
-          <FileText size={15} weight="duotone" className="text-muted-foreground" />
-          <span className="text-sm font-semibold text-foreground">Job Description Input</span>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-muted/30">
+          <div className="flex items-center gap-2.5">
+            <FileText size={15} weight="duotone" className="text-muted-foreground" />
+            <span className="text-sm font-semibold text-foreground">Job Description Input</span>
+          </div>
+          <button
+            onClick={() => { setJdText(''); setJobTitle(''); }}
+            className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Clear
+          </button>
         </div>
 
         <div className="p-6 space-y-5">
@@ -97,9 +126,11 @@ export default function JdAnalysisPage() {
           </div>
 
           <div className="flex items-center justify-between pt-1">
-            <p className="text-xs text-muted-foreground">
-              {jdText.length} characters · {jdText.trim().split(/\s+/).length} words
-            </p>
+            <div className="flex items-center gap-4">
+              <p className="text-xs text-muted-foreground">
+                {jdText.length} characters · {jdText.trim().split(/\s+/).length} words
+              </p>
+            </div>
             <button
               onClick={handleAnalyze}
               disabled={isAnalyzing || !jdText.trim()}

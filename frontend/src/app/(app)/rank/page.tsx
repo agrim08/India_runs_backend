@@ -20,6 +20,10 @@ import {
   Star,
   CircleNotch,
   CheckCircle,
+  EnvelopeSimple,
+  Copy,
+  Plus,
+  Minus,
 } from '@phosphor-icons/react';
 
 interface Candidate {
@@ -115,8 +119,8 @@ const STATUS_CONFIG = {
 
 export default function RankPage() {
   const [search, setSearch] = React.useState('');
-  const [filter, setFilter] = React.useState<'all' | 'gems' | 'recommended'>('all');
-  const [candidates, setCandidates] = React.useState<Candidate[]>(mockCandidates);
+  const [filter, setFilter] = React.useState<'all' | 'top' | 'recommended'>('all');
+  const [candidates, setCandidates] = React.useState<Candidate[]>([]);
   const [isRanking, setIsRanking] = React.useState(false);
   const [jdText, setJdText] = React.useState<string>('');
 
@@ -130,21 +134,65 @@ export default function RankPage() {
   const [compareData, setCompareData] = React.useState<any>(null);
   const [isComparing, setIsComparing] = React.useState(false);
   const [showCompareModal, setShowCompareModal] = React.useState(false);
+  const [showEmailAccordion, setShowEmailAccordion] = React.useState(false);
+
+  const getCache = (type: 'copilot' | 'risk' | 'compare', key: string) => {
+    try {
+      const data = localStorage.getItem(`talentIntelCache_${type}`);
+      if (data) return JSON.parse(data)[key];
+    } catch { }
+    return null;
+  };
+
+  const setCache = (type: 'copilot' | 'risk' | 'compare', key: string, val: any) => {
+    try {
+      const current = localStorage.getItem(`talentIntelCache_${type}`);
+      const data = current ? JSON.parse(current) : {};
+      data[key] = val;
+      localStorage.setItem(`talentIntelCache_${type}`, JSON.stringify(data));
+    } catch { }
+  };
 
   const expandedCandidate = candidates.find(c => c.id === expandedId) || null;
 
   React.useEffect(() => {
     const savedJd = localStorage.getItem('talentIntelJD');
     if (savedJd) setJdText(savedJd);
+
+    const autoRun = localStorage.getItem('talentIntelAutoRunRank');
+    const savedCandidates = localStorage.getItem('talentIntelRankedCandidates');
+
+    if (savedCandidates && autoRun !== 'true') {
+      try {
+        setCandidates(JSON.parse(savedCandidates));
+      } catch (e) {
+        console.error('Failed to parse saved candidates', e);
+      }
+    }
+
+    if (autoRun === 'true') {
+      localStorage.removeItem('talentIntelAutoRunRank');
+      // Execute rank immediately with the saved JD
+      setTimeout(() => {
+        handleRank(savedJd || undefined);
+      }, 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleExpand = (id: string) => {
-    if (expandedId === id) { setExpandedId(null); setCopilotData(null); setRiskData(null); }
-    else { setExpandedId(id); setCopilotData(null); setRiskData(null); }
+    if (expandedId === id) { setExpandedId(null); setCopilotData(null); setRiskData(null); setShowEmailAccordion(false); }
+    else { setExpandedId(id); setCopilotData(null); setRiskData(null); setShowEmailAccordion(false); }
   };
 
   const handleGenerateCopilot = async () => {
     if (!expandedCandidate) return;
+    const cached = getCache('copilot', expandedCandidate.id);
+    if (cached) {
+      setCopilotData(cached);
+      return;
+    }
+
     setIsGeneratingCopilot(true);
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -153,13 +201,21 @@ export default function RankPage() {
         body: JSON.stringify({ candidate_id: expandedCandidate.id, jd_text: jdText || 'Senior Golang / React Developer' })
       });
       if (!res.ok) throw new Error('Failed');
-      setCopilotData(await res.json());
+      const data = await res.json();
+      setCopilotData(data);
+      setCache('copilot', expandedCandidate.id, data);
     } catch { toast.error('Failed to generate interview guide'); }
     finally { setIsGeneratingCopilot(false); }
   };
 
   const handleAnalyzeRisk = async () => {
     if (!expandedCandidate) return;
+    const cached = getCache('risk', expandedCandidate.id);
+    if (cached) {
+      setRiskData(cached);
+      return;
+    }
+
     setIsAnalyzingRisk(true);
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -168,7 +224,9 @@ export default function RankPage() {
         body: JSON.stringify({ candidate_id: expandedCandidate.id, jd_text: jdText || 'Senior Golang / React Developer' })
       });
       if (!res.ok) throw new Error('Failed');
-      setRiskData(await res.json());
+      const data = await res.json();
+      setRiskData(data);
+      setCache('risk', expandedCandidate.id, data);
     } catch { toast.error('Failed to run Risk Analysis'); }
     finally { setIsAnalyzingRisk(false); }
   };
@@ -181,6 +239,14 @@ export default function RankPage() {
 
   const handleCompare = async () => {
     if (selectedForCompare.length < 2) return;
+    const compareKey = [...selectedForCompare].sort().join(',');
+    const cached = getCache('compare', compareKey);
+    if (cached) {
+      setCompareData(cached);
+      setShowCompareModal(true);
+      return;
+    }
+
     setIsComparing(true); setShowCompareModal(true);
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -189,36 +255,58 @@ export default function RankPage() {
         body: JSON.stringify({ candidate_ids: selectedForCompare, jd_text: jdText || 'Senior Golang / React Developer' })
       });
       if (!res.ok) throw new Error('Failed');
-      setCompareData(await res.json());
+      const data = await res.json();
+      setCompareData(data);
+      setCache('compare', compareKey, data);
     } catch { toast.error('Compare Engine failed.'); setShowCompareModal(false); }
     finally { setIsComparing(false); }
   };
 
-  const handleRank = async () => {
+  const handleRank = async (overrideJdText?: string | React.MouseEvent) => {
     setIsRanking(true);
+    // Invalidate caches for new rank run
+    localStorage.removeItem('talentIntelCache_copilot');
+    localStorage.removeItem('talentIntelCache_risk');
+    localStorage.removeItem('talentIntelCache_compare');
+
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const payloadText = jdText || `Senior Software Engineer with 5+ years in Golang and React.`;
+      const actualJdText = typeof overrideJdText === 'string' ? overrideJdText : jdText;
+      const payloadText = actualJdText || `Senior Software Engineer with 5+ years in Golang and React.`;
       const res = await fetch(`${apiUrl}/api/jd/match`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: payloadText })
       });
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
-      const map = (c: any, top: boolean): Candidate => ({
-        id: c.candidate_id,
-        name: c.profile_data.name || 'Anonymous',
-        currentRole: c.profile_data.current_role || 'Software Engineer',
-        experience: `${Math.round((c.profile_data.experience_months || 0) / 12)} years`,
-        matchScore: Math.round(c.final_score) || 0,
-        matchReason: `Semantic: ${Math.round(c.semantic_score)}% · Domain: ${Math.round(c.domain_score)}%`,
-        skills: c.profile_data.skills || [],
-        status: top ? 'highly-recommended' : 'recommended',
-      });
-      setCandidates([
+      const map = (c: any, top: boolean): Candidate => {
+        const p = c.profile || c.profile_data || {};
+        let status: Candidate['status'] = top ? 'highly-recommended' : 'recommended';
+
+        // Hidden Gem logic: High semantic fit but low domain fit
+        if (c.semantic_score >= 70 && c.domain_score <= 45) {
+          status = 'hidden-gem';
+        } else if (c.final_score < 50) {
+          status = 'underqualified';
+        }
+
+        return {
+          id: c.candidate_id,
+          name: p.anonymized_name || p.name || 'Anonymous',
+          currentRole: p.current_title || p.current_role || 'Professional',
+          experience: p.years_of_experience ? `${p.years_of_experience} years` : `${Math.round((p.experience_months || 0) / 12)} years`,
+          matchScore: Math.round(c.final_score) || 0,
+          matchReason: `Semantic: ${Math.round(c.semantic_score)}% · Domain: ${Math.round(c.domain_score)}%\n\n${p.summary || ''}`,
+          skills: c.skills || p.skills || [],
+          status: status,
+        };
+      };
+      const newCandidates = [
         ...(data.top_candidates || []).map((c: any) => map(c, true)),
         ...(data.considered_candidates || []).map((c: any) => map(c, false)),
-      ]);
+      ];
+      setCandidates(newCandidates);
+      localStorage.setItem('talentIntelRankedCandidates', JSON.stringify(newCandidates));
     } catch { toast.error('Failed to connect to ranking engine.'); }
     finally { setIsRanking(false); }
   };
@@ -226,10 +314,22 @@ export default function RankPage() {
   const filtered = candidates.filter(c => {
     const q = search.toLowerCase();
     const hit = c.name.toLowerCase().includes(q) || c.skills.some(s => s.toLowerCase().includes(q));
-    if (filter === 'gems') return hit && c.status === 'hidden-gem';
-    if (filter === 'recommended') return hit && (c.status === 'highly-recommended' || c.status === 'recommended');
+    if (filter === 'top') return hit && c.status === 'highly-recommended';
+    if (filter === 'recommended') return hit && c.status === 'recommended';
     return hit;
   });
+
+  const formattedReasoning = React.useMemo(() => {
+    if (!compareData?.reasoning) return '';
+    let text = compareData.reasoning;
+    selectedForCompare.forEach(id => {
+      const c = candidates.find(cand => cand.id === id);
+      if (c) {
+        text = text.replaceAll(id, c.name);
+      }
+    });
+    return text;
+  }, [compareData, selectedForCompare, candidates]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
@@ -266,7 +366,7 @@ export default function RankPage() {
           />
         </div>
         <div className="flex items-center bg-muted/50 border border-border/50 rounded-xl p-1 relative">
-          {(['all', 'recommended', 'gems'] as const).map(f => {
+          {(['all', 'top', 'recommended'] as const).map(f => {
             const isActive = filter === f;
             return (
               <button key={f} onClick={() => setFilter(f)}
@@ -278,7 +378,7 @@ export default function RankPage() {
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
                 )}
-                {f === 'all' ? 'All' : f === 'recommended' ? 'Recommended' : '✦ Hidden Gems'}
+                {f === 'all' ? 'All' : f === 'top' ? 'Top Match' : 'Recommended'}
               </button>
             );
           })}
@@ -351,12 +451,19 @@ export default function RankPage() {
                 </div>
 
                 {/* Compare */}
-                <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
-                  <input type="checkbox" checked={isSelected} onChange={() => toggleCompare(cand.id)}
-                    disabled={!isSelected && selectedForCompare.length >= 3}
-                    className="h-4 w-4 rounded border-border/60 cursor-pointer disabled:opacity-40" />
-                  <span className="text-[10px] text-muted-foreground font-medium hidden sm:block">Compare</span>
-                </label>
+                <div className="flex flex-col items-end justify-center shrink-0 w-[100px] relative group">
+                  {!isSelected && selectedForCompare.length >= 3 && (
+                    <span className="absolute top-full mt-2 right-0 text-[10px] font-medium text-gray-500 bg-transparent shadow-lg border border-border/50 px-2.5 py-1 rounded-md whitespace-nowrap hidden sm:block opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                      can only compare 3 candidates
+                    </span>
+                  )}
+                  <label className={`flex items-center gap-1.5 ${!isSelected && selectedForCompare.length >= 3 ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:opacity-80'}`}>
+                    <input type="checkbox" checked={isSelected} onChange={() => toggleCompare(cand.id)}
+                      disabled={!isSelected && selectedForCompare.length >= 3}
+                      className={`h-4 w-4 rounded border-border/60 ${!isSelected && selectedForCompare.length >= 3 ? 'cursor-not-allowed' : 'cursor-pointer'}`} />
+                    <span className="text-[10px] text-foreground font-medium hidden sm:block">Compare</span>
+                  </label>
+                </div>
 
                 {/* Expand */}
                 <button onClick={() => toggleExpand(cand.id)}
@@ -446,24 +553,66 @@ export default function RankPage() {
                             className="overflow-hidden border-t border-border/50 pt-5 space-y-4"
                           >
                             <p className="text-xs font-bold text-foreground uppercase tracking-wider">Interview Copilot</p>
-                            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                              <div>
-                                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Technical</p>
-                                <ol className="space-y-1.5 list-decimal pl-4">{copilotData.technical_questions?.map((q: string, i: number) => <li key={i} className="text-xs text-muted-foreground leading-relaxed">{q}</li>)}</ol>
+                            <div className="space-y-4">
+                              <div className="bg-background border border-border/50 rounded-xl p-4">
+                                <h4 className="text-xs font-bold text-foreground flex items-center gap-2 mb-3"><Brain size={14} className="text-primary" /> Technical Assessment</h4>
+                                <ul className="space-y-2">
+                                  {copilotData.technical_questions?.map((q: string, i: number) => (
+                                    <li key={i} className="text-xs text-muted-foreground flex gap-2"><span className="text-primary shrink-0 mt-0.5">•</span> <span className="leading-relaxed">{q}</span></li>
+                                  ))}
+                                </ul>
                               </div>
-                              <div>
-                                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Probe Areas</p>
-                                <ol className="space-y-1.5 list-decimal pl-4">{copilotData.areas_to_probe?.map((q: string, i: number) => <li key={i} className="text-xs text-muted-foreground leading-relaxed">{q}</li>)}</ol>
+                              <div className="bg-background border border-border/50 rounded-xl p-4">
+                                <h4 className="text-xs font-bold text-foreground flex items-center gap-2 mb-3"><Lightning size={14} className="text-amber-500" /> Areas to Probe</h4>
+                                <ul className="space-y-2">
+                                  {copilotData.areas_to_probe?.map((q: string, i: number) => (
+                                    <li key={i} className="text-xs text-muted-foreground flex gap-2"><span className="text-amber-500 shrink-0 mt-0.5">•</span> <span className="leading-relaxed">{q}</span></li>
+                                  ))}
+                                </ul>
                               </div>
-                              <div>
-                                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Behavioral</p>
-                                <ol className="space-y-1.5 list-decimal pl-4">{copilotData.behavioral_questions?.map((q: string, i: number) => <li key={i} className="text-xs text-muted-foreground leading-relaxed">{q}</li>)}</ol>
+                              <div className="bg-background border border-border/50 rounded-xl p-4">
+                                <h4 className="text-xs font-bold text-foreground flex items-center gap-2 mb-3"><User size={14} className="text-emerald-500" /> Behavioral & Culture Fit</h4>
+                                <ul className="space-y-2">
+                                  {copilotData.behavioral_questions?.map((q: string, i: number) => (
+                                    <li key={i} className="text-xs text-muted-foreground flex gap-2"><span className="text-emerald-500 shrink-0 mt-0.5">•</span> <span className="leading-relaxed">{q}</span></li>
+                                  ))}
+                                </ul>
                               </div>
                             </div>
                             {copilotData.personalized_outreach_email && (
-                              <div>
-                                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Outreach Email Draft</p>
-                                <pre className="text-xs font-mono text-muted-foreground bg-background border border-border/50 rounded-xl p-4 whitespace-pre-wrap leading-relaxed">{copilotData.personalized_outreach_email}</pre>
+                              <div className="bg-primary/5 border border-primary/20 rounded-xl overflow-hidden transition-all mt-4">
+                                <button
+                                  onClick={() => setShowEmailAccordion(!showEmailAccordion)}
+                                  className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-primary/10 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <EnvelopeSimple size={16} weight="duotone" className="text-primary" />
+                                    <h4 className="text-xs font-bold text-primary">Outreach Email Draft</h4>
+                                  </div>
+                                  {showEmailAccordion ? <Minus size={14} weight="bold" className="text-primary" /> : <Plus size={14} weight="bold" className="text-primary" />}
+                                </button>
+                                {showEmailAccordion && (
+                                  <div className="p-4 pt-0 border-t border-primary/10 animate-in slide-in-from-top-2 fade-in duration-200 ">
+                                    <div className="bg-background rounded-lg p-4 border border-border/50 text-xs text-foreground mt-2 whitespace-pre-wrap leading-relaxed relative group">
+                                      {copilotData.personalized_outreach_email}
+                                      <button
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(copilotData.personalized_outreach_email);
+                                          toast.success("Email copied to clipboard!");
+                                        }}
+                                        className="absolute top-2 right-2 p-1.5 bg-muted hover:bg-muted-foreground/20 rounded-md opacity-100 transition-opacity cursor-pointer text-muted-foreground"
+                                        title="Copy to clipboard"
+                                      >
+                                        <Copy size={14} weight="duotone" />
+                                      </button>
+                                    </div>
+                                    <div className="mt-3 flex justify-end">
+                                      <button onClick={() => setShowEmailAccordion(false)} className="text-[11px] font-bold text-primary hover:underline cursor-pointer">
+                                        Close Draft
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </motion.div>
@@ -516,12 +665,12 @@ export default function RankPage() {
                 </div>
               ) : compareData ? (
                 <div className="space-y-6">
-                  {compareData.recommended_candidate_id && (
+                  {formattedReasoning && (
                     <div className="flex items-start gap-4 bg-emerald-500/8 border border-emerald-500/20 rounded-2xl p-5">
                       <Trophy size={18} weight="duotone" className="text-emerald-600 shrink-0 mt-0.5" />
                       <div>
                         <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mb-1">Recommended Hire</p>
-                        <p className="text-sm text-foreground leading-relaxed">{compareData.reasoning}</p>
+                        <p className="text-sm text-foreground leading-relaxed">{formattedReasoning}</p>
                       </div>
                     </div>
                   )}

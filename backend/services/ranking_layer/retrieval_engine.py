@@ -7,6 +7,8 @@ from backend.services.skill_score import SkillScorer
 from backend.services.experience_score import ExperienceScorer
 from backend.services.career_trajectory import CareerTrajectoryScorer
 
+from backend.app.utils.gemini_client import client, MODEL_NAME
+
 logger = logging.getLogger(__name__)
 
 class RetrievalEngine:
@@ -14,6 +16,25 @@ class RetrievalEngine:
     Implements the Top-50 Retrieval Pipeline (5000 -> 500 -> 50 -> 10).
     Coordinates hard filters, semantic search, and hybrid ranking.
     """
+    
+    @staticmethod
+    async def generate_vector_search_query(jd: JobDescription) -> str:
+        prompt = f"""
+You are an expert technical sourcer building a query for a vector database.
+Write a dense, highly optimized paragraph describing the ideal candidate's profile for semantic matching.
+Focus heavily on the exact technical skills, the domain context, the seniority level, and synonyms for the required skills.
+Return ONLY the raw paragraph text. Do not include markdown, quotes, or conversational filler.
+
+Role: {jd.role}
+Domain: {jd.domain}
+Required Skills: {', '.join(jd.required_skills)}
+Nice to Have: {', '.join(jd.nice_to_have_skills)}
+"""
+        response = await client.aio.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt,
+        )
+        return response.text.strip()
     
     @staticmethod
     async def retrieve_and_rank(jd: JobDescription) -> list:
@@ -26,15 +47,14 @@ class RetrievalEngine:
         Returns:
             List of all 25 ranked candidates.
         """
-        # STEP 1: Construct a rich semantic string from the JD for embedding
-        jd_semantic_string = f"Role: {jd.role}. Domain: {jd.domain}. Required Skills: {', '.join(jd.required_skills)}. Nice to have: {', '.join(jd.nice_to_have_skills)}."
+        # STEP 1: Construct an LLM-optimized semantic string from the JD for embedding
+        jd_semantic_string = await RetrievalEngine.generate_vector_search_query(jd)
         
-        # STEP 2: Semantic Retrieval (Top 25)
-        # In a real scenario, Supabase RPC would also apply the hard filters (min experience) before vector search.
+        # STEP 2: Semantic Retrieval (Top 50)
         try:
             semantic_candidates = await SemanticMatchEngine.match_candidates(
                 jd_summary_text=jd_semantic_string, 
-                top_k=25
+                top_k=50
             )
         except Exception as e:
             logger.error(f"Semantic retrieval failed: {e}")
@@ -43,7 +63,16 @@ class RetrievalEngine:
         if not semantic_candidates:
             return []
 
-        # STEP 3: Hybrid Ranking (50 -> 10)
+        # Apply Hard Filter: Minimum Experience
+        if jd.min_experience_years is not None:
+            filtered_candidates = []
+            for c in semantic_candidates:
+                exp = c.get("profile_data", {}).get("profile", {}).get("years_of_experience", 0)
+                if exp >= jd.min_experience_years:
+                    filtered_candidates.append(c)
+            semantic_candidates = filtered_candidates
+
+        # STEP 3: Hybrid Ranking
         ranked_candidates = []
         for candidate in semantic_candidates:
             # Supabase RPC returns the similarity as 'similarity'
@@ -88,11 +117,12 @@ class RetrievalEngine:
                 "semantic_score": round(semantic_score, 2),
                 "domain_score": domain_score,
                 "final_score": round(final_score, 2),
-                "profile": profile_data.get("profile", {})
+                "profile": profile_data.get("profile", {}),
+                "skills": [s.get("name") for s in profile_data.get("skills", []) if isinstance(s, dict)]
             })
             
         # Sort by final score descending
         ranked_candidates.sort(key=lambda x: x["final_score"], reverse=True)
         
-        # Return all 25 sorted candidates
-        return ranked_candidates
+        # Return top 25 sorted candidates
+        return ranked_candidates[:25]
