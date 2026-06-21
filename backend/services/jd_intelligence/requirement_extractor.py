@@ -1,6 +1,6 @@
 import json
 from google.genai import types
-from backend.app.utils.gemini_client import client, MODEL_NAME
+from backend.app.utils.gemini_client import client, MODEL_NAME, generate_content_with_retry
 
 class RequirementExtractor:
     """
@@ -25,11 +25,9 @@ Respond in JSON:
 Job Description:
 {jd_text}
 """
-        response = await client.aio.models.generate_content(
+        response = await generate_content_with_retry(
             model=MODEL_NAME,
             contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-            )
+            config=types.GenerateContentConfig(response_mime_type="application/json")
         )
         return json.loads(response.text)

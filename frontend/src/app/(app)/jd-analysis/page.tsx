@@ -41,7 +41,6 @@ export default function JdAnalysisPage() {
       localStorage.setItem('talentIntelJDText', jdText);
       localStorage.setItem('talentIntelJobTitle', jobTitle);
       localStorage.setItem('talentIntelExtractedData', JSON.stringify(data));
-      localStorage.setItem('talentIntelAutoRunRank', 'true');
       setAnalyzed(true);
     } catch (e: any) {
       toast.error('Could not reach the AI engine. Check that the backend is running.');
@@ -226,7 +225,10 @@ export default function JdAnalysisPage() {
               </div>
 
               <button
-                onClick={() => router.push('/rank')}
+                onClick={() => {
+                  localStorage.setItem('talentIntelAutoRunRank', 'true');
+                  router.push('/rank');
+                }}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-secondary text-secondary-foreground shadow-md rounded-xl text-sm font-semibold hover:bg-secondary/90 active:scale-[0.98] transition-all cursor-pointer"
               >
                 <Play size={14} weight="fill" />

@@ -29,3 +29,4 @@ share/python-wheels/
 MANIFEST
 
 # ... rest of the file exactly as it is ...
+.env

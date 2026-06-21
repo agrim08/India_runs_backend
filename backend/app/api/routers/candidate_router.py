@@ -1,10 +1,17 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import List
+import uuid
+import logging
 from backend.app.core.db import supabase
 from backend.services.comparison_system.comparison_engine import ComparisonEngine
 from backend.services.risk_engine.risk_analysis import RiskEngine
 from backend.services.recommendation_engine.recruiter_copilot import RecruiterCopilot
+from backend.services.pdf_parser import PDFResumeParser
+from backend.app.utils.gemini_client import generate_embeddings
+from backend.app.utils.markdown_synthesizer import synthesize_candidate_markdown
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -64,3 +71,39 @@ async def compare_candidates(req: ComparisonRequest):
         return comparison
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/upload")
+async def upload_resumes(files: List[UploadFile] = File(...)):
+    """
+    Parses PDF resumes, generates embeddings, and stores them as Custom Data.
+    """
+    results = []
+    for file in files:
+        if not file.filename.lower().endswith(".pdf"):
+            results.append({"filename": file.filename, "status": "failed", "error": "Only PDFs are allowed."})
+            continue
+        try:
+            content = await file.read()
+            profile_data = await PDFResumeParser.parse_resume_to_json(content)
+            
+            cand_id = profile_data.get("candidate_id") or str(uuid.uuid4())
+            profile_data["candidate_id"] = cand_id
+            
+            # Generate markdown and embed
+            md_text = synthesize_candidate_markdown(profile_data)
+            embedding = await generate_embeddings(md_text)
+            
+            # Upsert into supabase
+            supabase.table("candidates").upsert({
+                "candidate_id": cand_id,
+                "profile_data": profile_data,
+                "embedding": embedding,
+                "is_custom": True
+            }).execute()
+            
+            results.append({"filename": file.filename, "candidate_id": cand_id, "status": "success"})
+        except Exception as e:
+            logger.error(f"Failed to process {file.filename}: {e}")
+            results.append({"filename": file.filename, "status": "failed", "error": str(e)})
+            
+    return {"uploaded": results}

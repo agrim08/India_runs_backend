@@ -10,7 +10,7 @@ class SemanticMatchEngine:
     """
 
     @staticmethod
-    async def match_candidates(jd_summary_text: str, top_k: int = 50, threshold: float = 0.5) -> list:
+    async def match_candidates(jd_summary_text: str, top_k: int = 50, threshold: float = 0.5, is_custom: bool = False) -> list:
         """
         Embeds the JD text and queries the Supabase `match_candidates` RPC function.
         
@@ -31,7 +31,8 @@ class SemanticMatchEngine:
             response = supabase.rpc("match_candidates", {
                 "query_embedding": jd_embedding,
                 "match_threshold": threshold,
-                "match_count": top_k
+                "match_count": top_k,
+                "p_is_custom": is_custom
             }).execute()
             
             return response.data

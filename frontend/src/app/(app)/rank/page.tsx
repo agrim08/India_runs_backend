@@ -24,7 +24,9 @@ import {
   Copy,
   Plus,
   Minus,
+  CloudArrowUp
 } from '@phosphor-icons/react';
+import { FileUpload } from '@/components/ui/file-upload';
 
 interface Candidate {
   id: string;
@@ -135,6 +137,9 @@ export default function RankPage() {
   const [isComparing, setIsComparing] = React.useState(false);
   const [showCompareModal, setShowCompareModal] = React.useState(false);
   const [showEmailAccordion, setShowEmailAccordion] = React.useState(false);
+
+  const [isCustomMode, setIsCustomMode] = React.useState(false);
+  const [showUploadModal, setShowUploadModal] = React.useState(false);
 
   const getCache = (type: 'copilot' | 'risk' | 'compare', key: string) => {
     try {
@@ -275,7 +280,7 @@ export default function RankPage() {
       const payloadText = actualJdText || `Senior Software Engineer with 5+ years in Golang and React.`;
       const res = await fetch(`${apiUrl}/api/jd/match`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: payloadText })
+        body: JSON.stringify({ text: payloadText, is_custom: isCustomMode })
       });
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
@@ -383,10 +388,64 @@ export default function RankPage() {
             );
           })}
         </div>
-        <span className="text-xs text-muted-foreground font-medium self-center shrink-0">
+
+        <div className="flex items-center bg-muted/50 border border-border/50 rounded-xl p-1 relative ml-2">
+          <button
+            onClick={() => {
+              setIsCustomMode(false);
+              setTimeout(() => handleRank(jdText), 0);
+            }}
+            className={`relative px-3 py-1 rounded-lg text-xs font-semibold transition-colors z-10 ${!isCustomMode ? 'bg-background shadow-sm text-foreground border border-border/60' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            Static Pool
+          </button>
+          <button
+            onClick={() => {
+              setIsCustomMode(true);
+              setTimeout(() => handleRank(jdText), 0);
+            }}
+            className={`relative px-3 py-1 rounded-lg text-xs font-semibold transition-colors z-10 ${isCustomMode ? 'bg-background shadow-sm text-foreground border border-border/60' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            Custom Resumes
+          </button>
+        </div>
+
+        <button 
+          onClick={() => setShowUploadModal(true)}
+          className="flex items-center gap-2 px-3.5 py-1.5 border border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary rounded-xl text-xs font-bold transition-colors shadow-sm ml-auto"
+        >
+          <CloudArrowUp size={16} weight="duotone" />
+          Upload Resumes
+        </button>
+
+        <span className="text-xs text-muted-foreground font-medium self-center shrink-0 ml-2">
           {filtered.length} candidate{filtered.length !== 1 ? 's' : ''}
         </span>
       </div>
+
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <div className="bg-card w-full max-w-2xl border border-border shadow-lg rounded-2xl p-6 relative">
+            <button 
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+              onClick={() => setShowUploadModal(false)}
+            >
+              <X size={20} />
+            </button>
+            <h2 className="text-xl font-bold mb-2">Upload Custom Resumes</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Drop PDF resumes here. They will be parsed by Gemini, embedded, and saved securely to your private candidate pool.
+            </p>
+            <FileUpload 
+              onUploadComplete={() => {
+                setShowUploadModal(false);
+                setIsCustomMode(true);
+                handleRank(jdText);
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* List */}
       <div className="space-y-2">

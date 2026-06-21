@@ -7,7 +7,7 @@ from backend.services.skill_score import SkillScorer
 from backend.services.experience_score import ExperienceScorer
 from backend.services.career_trajectory import CareerTrajectoryScorer
 
-from backend.app.utils.gemini_client import client, MODEL_NAME
+from backend.app.utils.gemini_client import client, MODEL_NAME, generate_content_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -30,14 +30,14 @@ Domain: {jd.domain}
 Required Skills: {', '.join(jd.required_skills)}
 Nice to Have: {', '.join(jd.nice_to_have_skills)}
 """
-        response = await client.aio.models.generate_content(
+        response = await generate_content_with_retry(
             model=MODEL_NAME,
             contents=prompt,
         )
         return response.text.strip()
     
     @staticmethod
-    async def retrieve_and_rank(jd: JobDescription) -> list:
+    async def retrieve_and_rank(jd: JobDescription, is_custom: bool = False) -> list:
         """
         Executes the full retrieval and ranking pipeline.
         
@@ -54,7 +54,8 @@ Nice to Have: {', '.join(jd.nice_to_have_skills)}
         try:
             semantic_candidates = await SemanticMatchEngine.match_candidates(
                 jd_summary_text=jd_semantic_string, 
-                top_k=50
+                top_k=50,
+                is_custom=is_custom
             )
         except Exception as e:
             logger.error(f"Semantic retrieval failed: {e}")

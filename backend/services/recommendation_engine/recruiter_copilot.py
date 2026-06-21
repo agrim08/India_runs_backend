@@ -1,7 +1,7 @@
 import json
 import logging
 from google.genai import types
-from backend.app.utils.gemini_client import client, MODEL_NAME
+from backend.app.utils.gemini_client import client, MODEL_NAME, generate_content_with_retry
 from backend.app.utils.markdown_synthesizer import synthesize_candidate_markdown
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ Job Description:
 Candidate Profile:
 {synthesize_candidate_markdown(candidate_profile)}
 """
-        response = await client.aio.models.generate_content(
+        response = await generate_content_with_retry(
             model=MODEL_NAME,
             contents=prompt,
             config=types.GenerateContentConfig(response_mime_type="application/json")

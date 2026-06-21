@@ -9,6 +9,7 @@ router = APIRouter()
 
 class JDRequest(BaseModel):
     text: str
+    is_custom: bool = False
 
 @router.post("/parse")
 async def parse_jd(request: JDRequest):
@@ -34,7 +35,7 @@ async def match_jd_to_candidates(request: JDRequest):
     """
     try:
         jd_data = await JDParser.parse_jd_text(request.text)
-        ranked_candidates = await RetrievalEngine.retrieve_and_rank(jd_data)
+        ranked_candidates = await RetrievalEngine.retrieve_and_rank(jd_data, request.is_custom)
         return {
             "query_jd": jd_data.model_dump(),
             "top_candidates": ranked_candidates[:7],
