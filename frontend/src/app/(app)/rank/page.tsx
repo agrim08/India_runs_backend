@@ -165,7 +165,8 @@ export default function RankPage() {
     if (savedJd) setJdText(savedJd);
 
     const autoRun = localStorage.getItem('talentIntelAutoRunRank');
-    const savedCandidates = localStorage.getItem('talentIntelRankedCandidates');
+    const cacheKey = `talentIntelRankedCandidates_${isCustomMode ? 'custom' : 'static'}`;
+    const savedCandidates = localStorage.getItem(cacheKey) || localStorage.getItem('talentIntelRankedCandidates');
 
     if (savedCandidates && autoRun !== 'true') {
       try {
@@ -179,7 +180,7 @@ export default function RankPage() {
       localStorage.removeItem('talentIntelAutoRunRank');
       // Execute rank immediately with the saved JD
       setTimeout(() => {
-        handleRank(savedJd || undefined);
+        executeRank(savedJd || jdText, isCustomMode, true);
       }, 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -267,8 +268,22 @@ export default function RankPage() {
     finally { setIsComparing(false); }
   };
 
-  const handleRank = async (overrideJdText?: string | React.MouseEvent) => {
+  const executeRank = async (jdToUse: string, isCustom: boolean, force: boolean) => {
     setIsRanking(true);
+
+    const cacheKey = `talentIntelRankedCandidates_${isCustom ? 'custom' : 'static'}`;
+
+    if (!force) {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          setCandidates(JSON.parse(cached));
+          setIsRanking(false);
+          return;
+        } catch {}
+      }
+    }
+
     // Invalidate caches for new rank run
     localStorage.removeItem('talentIntelCache_copilot');
     localStorage.removeItem('talentIntelCache_risk');
@@ -276,11 +291,10 @@ export default function RankPage() {
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const actualJdText = typeof overrideJdText === 'string' ? overrideJdText : jdText;
-      const payloadText = actualJdText || `Senior Software Engineer with 5+ years in Golang and React.`;
+      const payloadText = jdToUse || `Senior Software Engineer with 5+ years in Golang and React.`;
       const res = await fetch(`${apiUrl}/api/jd/match`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: payloadText, is_custom: isCustomMode })
+        body: JSON.stringify({ text: payloadText, is_custom: isCustom })
       });
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
@@ -311,9 +325,15 @@ export default function RankPage() {
         ...(data.considered_candidates || []).map((c: any) => map(c, false)),
       ];
       setCandidates(newCandidates);
+      localStorage.setItem(cacheKey, JSON.stringify(newCandidates));
       localStorage.setItem('talentIntelRankedCandidates', JSON.stringify(newCandidates));
     } catch { toast.error('Failed to connect to ranking engine.'); }
     finally { setIsRanking(false); }
+  };
+
+  const handleRank = (e?: React.MouseEvent | string) => {
+    let jd = typeof e === 'string' ? e : jdText;
+    executeRank(jd, isCustomMode, true);
   };
 
   const filtered = candidates.filter(c => {
@@ -393,7 +413,7 @@ export default function RankPage() {
           <button
             onClick={() => {
               setIsCustomMode(false);
-              setTimeout(() => handleRank(jdText), 0);
+              setTimeout(() => executeRank(jdText, false, false), 0);
             }}
             className={`relative px-3 py-1 rounded-lg text-xs font-semibold transition-colors z-10 ${!isCustomMode ? 'bg-background shadow-sm text-foreground border border-border/60' : 'text-muted-foreground hover:text-foreground'}`}
           >
@@ -402,7 +422,7 @@ export default function RankPage() {
           <button
             onClick={() => {
               setIsCustomMode(true);
-              setTimeout(() => handleRank(jdText), 0);
+              setTimeout(() => executeRank(jdText, true, false), 0);
             }}
             className={`relative px-3 py-1 rounded-lg text-xs font-semibold transition-colors z-10 ${isCustomMode ? 'bg-background shadow-sm text-foreground border border-border/60' : 'text-muted-foreground hover:text-foreground'}`}
           >
@@ -440,7 +460,7 @@ export default function RankPage() {
               onUploadComplete={() => {
                 setShowUploadModal(false);
                 setIsCustomMode(true);
-                handleRank(jdText);
+                executeRank(jdText, true, true);
               }}
             />
           </div>
@@ -464,8 +484,27 @@ export default function RankPage() {
 
         {!isRanking && filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 bg-card border border-border/50 rounded-2xl gap-3">
-            <WarningCircle size={40} weight="duotone" className="text-muted-foreground/40" />
-            <p className="text-sm font-semibold text-muted-foreground">No candidates found</p>
+            {isCustomMode ? (
+              <>
+                <CloudArrowUp size={40} weight="duotone" className="text-primary/40" />
+                <p className="text-sm font-semibold text-foreground">No custom resumes found</p>
+                <p className="text-xs text-muted-foreground max-w-sm text-center mb-2">
+                  Upload resumes to test and rank your own candidates against the current Job Description.
+                </p>
+                <button 
+                  onClick={() => setShowUploadModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl text-xs font-bold transition-colors shadow-sm"
+                >
+                  <CloudArrowUp size={16} weight="bold" />
+                  Upload Resumes Now
+                </button>
+              </>
+            ) : (
+              <>
+                <WarningCircle size={40} weight="duotone" className="text-muted-foreground/40" />
+                <p className="text-sm font-semibold text-muted-foreground">No candidates found</p>
+              </>
+            )}
           </div>
         )}
 
