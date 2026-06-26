@@ -167,6 +167,10 @@ Example:
 candidate_id,rank,score,reasoning
 CAND_0000031,1,1.0000,Recommendation Systems Engineer with 6.0 yrs; 4 AI core skills; response rate 0.91
 CAND_0000001,2,0.9690,Backend Engineer with 6.9 yrs; 5 AI core skills; response rate 0.34
+.
+.
+.
+CAND_0000027,46,0.0956,DevOps Engineer with 3.9 yrs; 2 AI core skills; response rate 0.58; consulting-only background
 ```
 
 ## Web App (Recruiter Copilot) 💻
@@ -204,5 +208,4 @@ API docs: `http://localhost:8000/docs` | App: `http://localhost:3000`
 
 
 ...
-CAND_0000027,46,0.0956,DevOps Engineer with 3.9 yrs; 2 AI core skills; response rate 0.58; consulting-only background
-```
+
