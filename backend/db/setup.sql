@@ -19,7 +19,8 @@ create table if not exists candidates (
 create or replace function match_candidates (
   query_embedding vector(3072),
   match_threshold float,
-  match_count int
+  match_count int,
+  p_is_custom boolean
 )
 returns table (
   candidate_id text,
@@ -34,6 +35,7 @@ as $$
     1 - (candidates.embedding <=> query_embedding) as similarity
   from candidates
   where 1 - (candidates.embedding <=> query_embedding) > match_threshold
+    and candidates.is_custom = p_is_custom
   order by similarity desc
   limit match_count;
 $$;

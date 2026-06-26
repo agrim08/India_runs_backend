@@ -28,12 +28,16 @@ class SemanticMatchEngine:
             
             # 2. Query Supabase pgvector using the RPC function
             # Note: We assume a 'match_candidates' function exists in Supabase.
+            print("Threshold:", threshold)
             response = supabase.rpc("match_candidates", {
                 "query_embedding": jd_embedding,
                 "match_threshold": threshold,
                 "match_count": top_k,
                 "p_is_custom": is_custom
             }).execute()
+
+            print("RPC returned:")
+            print(response.data)
             
             return response.data
             

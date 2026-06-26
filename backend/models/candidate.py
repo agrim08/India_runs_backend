@@ -210,7 +210,7 @@ class Candidate(BaseModel):
     Top-level model representing a full candidate profile.
     """
     candidate_id: str = Field(
-        ..., pattern=r"^CAND_[0-9]{7}$", description="Unique identifier format CAND_XXXXXXX."
+        ..., pattern=r"^(CAND_[0-9]{7}|[a-fA-F0-9\-]{36})$", description="Unique identifier format CAND_XXXXXXX or UUID."
     )
     profile: Profile = Field(..., description="Candidate profile details.")
     career_history: List[CareerHistory] = Field(
