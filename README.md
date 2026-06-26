@@ -117,39 +117,6 @@ Runs fully offline on CPU with no external API calls. Multi-stage pipeline:
 
 ## 🚦 Getting Started
 
-### Web App (Recruiter Copilot)
-
-**1. Setup Environment**
-
-Rename `.env.example` to `.env` and fill in your keys:
-```env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your_anon_key
-GEMINI_API_KEY=your_gemini_key
-```
-
-**2. Database Setup**
-
-Run `backend/db/setup.sql` in your Supabase SQL Editor.
-
-> Note: Do not create an ivfflat index — `gemini-embedding-2` produces 3072-dim vectors, exceeding pgvector's 2000-dim index limit. A sequential scan is optimal at hackathon dataset size.
-
-**3. Seed Candidates**
-```bash
-python backend/db/seed.py
-```
-
-**4. Run the API + Frontend**
-```bash
-# Backend
-uvicorn backend.app.main:app --reload
-# Frontend (separate terminal)
-cd frontend && npm run dev
-```
-API docs: `http://localhost:8000/docs` | App: `http://localhost:3000`
-
----
-
 ## 🏆 Reproduce Ranking (Hackathon Submission)
 
 The offline ranking pipeline satisfies all submission constraints:
@@ -200,6 +167,41 @@ Example:
 candidate_id,rank,score,reasoning
 CAND_0000031,1,1.0000,Recommendation Systems Engineer with 6.0 yrs; 4 AI core skills; response rate 0.91
 CAND_0000001,2,0.9690,Backend Engineer with 6.9 yrs; 5 AI core skills; response rate 0.34
+
+### Web App (Recruiter Copilot)
+
+**1. Setup Environment**
+
+Rename `.env.example` to `.env` and fill in your keys:
+```env
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your_anon_key
+GEMINI_API_KEY=your_gemini_key
+```
+
+**2. Database Setup**
+
+Run `backend/db/setup.sql` in your Supabase SQL Editor.
+
+> Note: Do not create an ivfflat index — `gemini-embedding-2` produces 3072-dim vectors, exceeding pgvector's 2000-dim index limit. A sequential scan is optimal at hackathon dataset size.
+
+**3. Seed Candidates**
+```bash
+python backend/db/seed.py
+```
+
+**4. Run the API + Frontend**
+```bash
+# Backend
+uvicorn backend.app.main:app --reload
+# Frontend (separate terminal)
+cd frontend && npm run dev
+```
+API docs: `http://localhost:8000/docs` | App: `http://localhost:3000`
+
+---
+
+
 ...
 CAND_0000027,46,0.0956,DevOps Engineer with 3.9 yrs; 2 AI core skills; response rate 0.58; consulting-only background
 ```
