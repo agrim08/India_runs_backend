@@ -37,7 +37,7 @@ Nice to Have: {', '.join(jd.nice_to_have_skills)}
         return response.text.strip()
     
     @staticmethod
-    async def retrieve_and_rank(jd: JobDescription, is_custom: bool = False) -> list:
+    async def retrieve_and_rank(jd: JobDescription, is_custom: bool = False, user_id: str = None) -> list:
         """
         Executes the full retrieval and ranking pipeline.
         
@@ -55,7 +55,8 @@ Nice to Have: {', '.join(jd.nice_to_have_skills)}
             semantic_candidates = await SemanticMatchEngine.match_candidates(
                 jd_summary_text=jd_semantic_string, 
                 top_k=50,
-                is_custom=is_custom
+                is_custom=is_custom,
+                user_id=user_id
             )
         except Exception as e:
             logger.error(f"Semantic retrieval failed: {e}")
@@ -122,8 +123,8 @@ Nice to Have: {', '.join(jd.nice_to_have_skills)}
                 "skills": [s.get("name") for s in profile_data.get("skills", []) if isinstance(s, dict)]
             })
             
-        # Sort by final score descending
-        ranked_candidates.sort(key=lambda x: x["final_score"], reverse=True)
+        # Sort by final score descending, and candidate_id ascending as tie-breaker
+        ranked_candidates.sort(key=lambda x: (-x["final_score"], x["candidate_id"]))
         
         # Return top 25 sorted candidates
         return ranked_candidates[:25]

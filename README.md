@@ -1,100 +1,205 @@
-# 🚀 India Runs Hackathon: AI Job Intelligence System
+# 🚀 India Runs Hackathon: AI Candidate Ranking System
 
-Recruiters go through hundreds of profiles and still often miss the right person because keyword filters can't see what actually matters. This project is a next-generation **AI Candidate Ranking System** that ranks candidates the way a great recruiter would—by actually understanding the semantic depth of their experience.
+Recruiters go through hundreds of profiles and still miss the right person because keyword filters can't see what actually matters. This project is a **two-mode AI candidate ranking system** — a live **Recruiter Copilot web app** powered by Gemini + Supabase, and a fully **offline, reproducible ranking pipeline** that satisfies all hackathon compute constraints.
 
 ---
 
-## 🏗 System Architecture & Pipeline
+## 🏗 System Architecture
 
-Our pipeline uses a hybrid approach: **Semantic Vector Retrieval** combined with **Domain Fit Scoring**, followed by deep generative analysis using Gemini 2.5 Flash for Recruiter Copilot features.
+The system operates in two modes — both share the same candidate data model and scoring logic.
 
 ```mermaid
 graph TD
-    JD[Raw Job Description] -->|FastAPI| API(Backend API)
-    API --> JD_Parser(Job Intelligence Engine)
-    
-    JD_Parser -->|Gemini 2.5 Flash| StructuredJD[Structured JSON]
-    JD_Parser -->|Gemini 2.5 Flash| HardReqs[Absolute Constraints]
-    
-    StructuredJD --> Embedder(Semantic Embedder)
-    Embedder -->|Gemini Embedding-2| Vector[3072-Dimensional Vector]
-    
-    Vector --> Supabase(Supabase pgvector)
-    Supabase -->|Top 25 Cosine Similarity| SemanticMatches(Semantic Matches)
-    
-    SemanticMatches --> DomainEngine(Domain Score Engine)
-    DomainEngine -->|Hybrid Scoring| Top7[Top 7 Ranked Candidates]
-    
-    Top7 --> Copilot(Tier 3 & 4 Features)
-    Copilot --> RiskEngine[Risk Analysis]
-    Copilot --> Comparison[Side-by-Side Compare]
-    Copilot --> InterviewGuide[AI Interview Guide]
+    subgraph "Mode 1 — Recruiter Copilot (Web App)"
+        JD[Raw Job Description] -->|FastAPI| API(Backend API)
+        API --> JD_Parser(Job Intelligence Engine)
+        JD_Parser -->|Gemini 2.5 Flash| StructuredJD[Structured JD JSON]
+        StructuredJD --> Embedder(Semantic Embedder)
+        Embedder -->|Gemini Embedding-2| Vector["3072-dim Vector"]
+        Vector --> Supabase(Supabase pgvector)
+        Supabase -->|Top 25 Cosine Similarity| Pool[Candidate Pool]
+        Pool --> RankEngine(Ranking Engine)
+        RankEngine --> Copilot(Recruiter Copilot)
+        Copilot --> RiskEngine[Risk Analysis]
+        Copilot --> Comparison[Side-by-Side Compare]
+        Copilot --> InterviewGuide[AI Interview Guide]
+    end
+
+    subgraph "Mode 2 — Offline Ranking Submission"
+        JSONL[candidates.jsonl] --> RankPy(rank.py)
+        RankPy -->|all-MiniLM-L6-v2 local| Embeddings[Batch Embeddings CPU]
+        Embeddings --> Signals(Multi-Signal Scorer)
+        Signals --> HoneypotDetect[Honeypot Detector]
+        Signals --> ConsultingPenalty[Consulting Penalty]
+        Signals --> AvailScorer[Availability Scorer]
+        HoneypotDetect --> FinalScore[Final Composite Score]
+        ConsultingPenalty --> FinalScore
+        AvailScorer --> FinalScore
+        FinalScore --> CSV[submission.csv — top 100]
+    end
 ```
 
 ---
 
-## 🧠 Design Decisions: "Why did we build it this way?"
+## 🧠 Design Decisions
 
-### 1. Why `gemini-embedding-2` and `pgvector` instead of Pinecone?
-**Decision:** We chose Supabase (PostgreSQL with `pgvector`) + `gemini-embedding-2` for our semantic layer.
-**Why:**
-- `gemini-embedding-2` produces incredibly dense **3072-dimensional** vectors, allowing us to capture deep semantic meaning in a candidate's profile (like distinguishing between "Managed a team of 5" vs "Led cross-functional product development").
-- We chose **Supabase** over Pinecone because it allows us to store the relational Candidate JSON data and the Vectors in the *exact same row*. This eliminates the "split-brain" architecture where we have to sync IDs between a Vector DB and a Relational DB. We query the vectors and fetch the full candidate profile in a single RPC call.
+### 1. Two-mode architecture: Copilot vs. Offline Submission
 
-### 2. Why a "Hybrid" Ranking System instead of Pure Vectors?
-**Decision:** We use Semantic Search to filter 5000 candidates down to 50, but we use a custom `DomainScoreEngine` to rank the Top 10.
-**Why:**
-- Vector math is great at finding "Software Engineers", but it struggles with temporal logic (e.g., "Has this person worked in *Finance* specifically for the last 4 years?").
-- Our `DomainScoreEngine` parses the candidate's exact career history array, calculates the exact percentage of months spent in the target industry, and fuses that with the Semantic Score. This mimics a real recruiter who says, "They are both great engineers, but Candidate A has more domain experience."
+**The problem:** The web app Recruiter Copilot needs rich, contextual AI (Gemini) for generating interview questions and risk analysis in real-time. But the hackathon submission requires **zero network access during ranking** and must complete in under 5 minutes on CPU.
 
-### 3. Why FastAPI?
-**Decision:** Built entirely on FastAPI using `asyncio`.
+**The decision:** We built two independent pipelines sharing the same data model:
+- **Mode 1 (Copilot):** Gemini 2.5 Flash + `gemini-embedding-2` (3072-dim) + Supabase pgvector. High-quality, cloud-native, for live recruiter use.
+- **Mode 2 (Offline):** `all-MiniLM-L6-v2` via `sentence-transformers`, fully local, batch-encoded, no internet required.
+
+### 2. Why `all-MiniLM-L6-v2` for offline ranking?
+
+**Decision:** Chose `all-MiniLM-L6-v2` as the offline embedding model instead of larger alternatives.
+
 **Why:**
-- Calls to Gemini via `google-genai` and calls to Supabase are heavily I/O bound. FastAPI's native `async/await` prevents the server from blocking while waiting on external AI processing, enabling high throughput for a massive candidate pool.
+- **Speed:** Encodes ~1,000–3,000 texts/second on CPU. At `batch_size=128`, 100K candidates finish in ~1–3 minutes — well within the 5-minute wall-clock constraint.
+- **Size:** 90 MB on disk, under the 5 GB disk state limit.
+- **Quality:** Despite being small (22M params), it produces competitive 384-dim embeddings for our use case — distinguishing ML engineers from project managers from the same text.
+- **Offline:** Pre-cached in the Docker image at build time. Zero network at ranking time.
+
+### 3. Why a Multi-Signal Scoring Formula?
+
+**Decision:** Instead of ranking purely by cosine similarity, we combine 6 signals.
+
+**Why:**  
+Cosine similarity alone is naive — it ranks a "Machine Learning Engineer at Wipro with 15 years consulting" above a "Senior ML Engineer at a product startup with 6 years". Our formula applies structured corrections:
+
+| Signal | Weight/Type | What it catches |
+|---|---|---|
+| Semantic similarity | 40% | Core profile-to-JD alignment |
+| Skill match | 35% | Required (Python, Embeddings, VectorDB, Ranking) + Preferred skills |
+| Experience score | 25% | YoE in target range (5–9 yrs), relevant domain exp, seniority |
+| Honeypot penalty | ×multiplier | Impossible profiles planted by judges |
+| Consulting penalty | ×multiplier | Entire careers at TCS/Wipro/Infosys/Accenture/etc. |
+| Availability multiplier | ×multiplier | Inactive profiles, low response rates, long notice periods |
+
+### 4. Why `gemini-embedding-2` and `pgvector` for the Web App?
+
+**Decision:** Supabase (PostgreSQL + `pgvector`) + `gemini-embedding-2` for the live recruiter product.
+
+**Why:**
+- `gemini-embedding-2` produces **3072-dimensional** vectors — capturing richer semantic distinctions than smaller models (e.g., distinguishing "Managed a team" vs "Led cross-functional product development").
+- Supabase lets us store the full relational candidate JSON *in the same row as the vector*, eliminating the split-brain problem of syncing IDs between a vector DB and a relational DB. A single `match_candidates` RPC returns everything in one query.
+
+### 5. Why FastAPI?
+
+**Decision:** FastAPI with `async/await` throughout the backend.
+
+**Why:** Gemini API calls and Supabase RPC queries are I/O-bound. FastAPI's native `asyncio` prevents the server from blocking while waiting on external AI processing, enabling concurrent recruiter sessions without thread overhead.
 
 ---
 
-## 🛠 Core Features & Output Types
+## 🛠 Core Features
 
 ### 1. Job Intelligence Engine
-- **Structured Parsing**: Converts messy, unstructured Job Descriptions into a clean, strictly-typed JSON schema using Gemini 2.5 Flash.
-- **Constraint Extraction**: Uses LLM logic to distinguish between "Nice to Haves" and absolute dealbreakers (e.g., "Must be US Citizen").
+- **Structured Parsing**: Converts raw JDs into a clean, strictly-typed JSON schema via Gemini 2.5 Flash.
+- **Constraint Extraction**: Separates hard dealbreakers (e.g., "Must be India-based") from "nice to haves".
 
-### 2. Hybrid Candidate Filtering & Ranking
-Instead of relying solely on pure vector search (which struggles with temporal logic, like "years of experience in a specific domain"), our pipeline implements a multi-stage process:
-- **Semantic Match**: Embeds the structured JD and executes a `pgvector` cosine similarity search to fetch an initial pool of **25 semantically relevant candidates** that can be considered.
-- **Domain Fit Engine**: A deterministic scoring algorithm that parses a candidate's career history array and calculates the exact percentage of months spent in the targeted industry.
-- **Hybrid Orchestrator**: Fuses the AI vector score with the deterministic domain score to rank the 25 candidates, explicitly filtering out the **Top 7 best-fit candidates** to be interviewed.
+### 2. Offline Hybrid Ranking (`rank.py`)
+Runs fully offline on CPU with no external API calls. Multi-stage pipeline:
+- **Semantic Match**: Local `all-MiniLM-L6-v2` batch embeddings → cosine similarity
+- **Skill Coverage**: Required (75%) + Preferred (25%) skill group matching against JD
+- **Experience Score**: YoE range, relevant ML/AI domain months, peak seniority
+- **Honeypot Detection**: Flags impossible profiles — date overlaps, expert skills with 0 months, implausible YoE
+- **Consulting Penalty**: Down-weights candidates with 100% consulting-firm careers (TCS, Wipro, Infosys, Accenture, 30+ firms)
+- **Availability Scoring**: Penalizes inactive, unresponsive, or unavailable candidates
 
-### 3. Recruiter Copilot (AI-Powered Insights)
-- **Side-by-Side Comparison**: Generates an AI-driven comparison matrix mapping multiple candidates' specific strengths and weaknesses directly against the JD.
-- **Automated Risk Analysis**: Scans profiles for "Job Hopping", "Unexplained Gaps", or mismatched seniority.
-- **Interview Guide & Outreach**: Auto-generates personalized outreach emails and bespoke technical interview questions designed to probe a candidate's specific weak spots.
-
+### 3. Live Recruiter Copilot (AI-Powered Insights)
+- **Side-by-Side Comparison**: AI-driven comparison matrix of candidates vs. JD requirements
+- **Automated Risk Analysis**: Detects job-hopping, unexplained gaps, seniority mismatches
+- **Interview Guide & Outreach**: Auto-generates personalized outreach emails and targeted technical interview questions
 
 ---
 
 ## 🚦 Getting Started
 
-### 1. Setup Environment
-Rename `.env.example` to `.env` and add your keys:
+### Web App (Recruiter Copilot)
+
+**1. Setup Environment**
+
+Rename `.env.example` to `.env` and fill in your keys:
 ```env
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_KEY=your_anon_key
 GEMINI_API_KEY=your_gemini_key
 ```
 
-### 2. Database Setup
-Run `backend/db/setup.sql` in your Supabase SQL Editor. 
-*(Note: Do not create an ivfflat index, as pgvector indexes natively support up to 2000 dimensions, and our gemini embeddings use 3072 dimensions. A sequential scan is perfectly optimal for our hackathon dataset size).*
+**2. Database Setup**
 
-### 3. Seed Candidates
+Run `backend/db/setup.sql` in your Supabase SQL Editor.
+
+> Note: Do not create an ivfflat index — `gemini-embedding-2` produces 3072-dim vectors, exceeding pgvector's 2000-dim index limit. A sequential scan is optimal at hackathon dataset size.
+
+**3. Seed Candidates**
 ```bash
 python backend/db/seed.py
 ```
 
-### 4. Run the API
+**4. Run the API + Frontend**
 ```bash
+# Backend
 uvicorn backend.app.main:app --reload
+# Frontend (separate terminal)
+cd frontend && npm run dev
 ```
-View the Swagger docs at `http://localhost:8000/docs`.
+API docs: `http://localhost:8000/docs` | App: `http://localhost:3000`
+
+---
+
+## 🏆 Reproduce Ranking (Hackathon Submission)
+
+The offline ranking pipeline satisfies all submission constraints:
+
+| Constraint | Status |
+|---|---|
+| No external API calls during ranking | ✅ Local model only |
+| CPU-only | ✅ `device="cpu"` explicit |
+| ≤ 5 min for 100K candidates | ✅ ~1–3 min at `batch_size=128` |
+| ≤ 16 GB RAM | ✅ ~150 MB embeddings for 100K |
+| ≤ 5 GB disk state | ✅ ~1.3 GB total (model + deps) |
+| Network off | ✅ Model pre-cached in Docker |
+
+### Local (Python)
+
+```bash
+# Install offline dependencies
+pip install -r requirements-rank.txt
+
+# Run — produces submission.csv
+python rank.py --candidates ./candidates.jsonl --out ./submission.csv
+
+# Validate
+python data/validate_submission.py submission.csv
+```
+
+### Docker (Recommended)
+
+```bash
+# Build — pre-caches model during build (no network at runtime)
+docker build -f Dockerfile.rank -t india-runs-ranker .
+
+# Linux / macOS
+docker run --rm -v "$(pwd)":/data india-runs-ranker \
+    --candidates /data/candidates.jsonl --out /data/submission.csv
+
+# Windows PowerShell
+docker run --rm -v "${PWD}:/data" india-runs-ranker `
+    --candidates /data/candidates.jsonl --out /data/submission.csv
+```
+
+### Output Format
+
+`candidate_id,rank,score,reasoning` — 100 rows, scores in `[0.0, 1.0]`, monotonically non-increasing, ties broken by `candidate_id` ascending.
+
+Example:
+```
+candidate_id,rank,score,reasoning
+CAND_0000031,1,1.0000,Recommendation Systems Engineer with 6.0 yrs; 4 AI core skills; response rate 0.91
+CAND_0000001,2,0.9690,Backend Engineer with 6.9 yrs; 5 AI core skills; response rate 0.34
+...
+CAND_0000027,46,0.0956,DevOps Engineer with 3.9 yrs; 2 AI core skills; response rate 0.58; consulting-only background
+```

@@ -1,14 +1,17 @@
+# ─── Hackathon data files (not committed) ─────────────────────────────────────
 data/candidates.jsonl
+data/candidates.jsonl.gz
+data/test_submission.csv
+data/test_candidates_100.json
 
-# Byte-compiled / optimized / DLL files
+# ─── Secrets ──────────────────────────────────────────────────────────────────
+.env
+
+# ─── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[codz]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -28,5 +31,27 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# ... rest of the file exactly as it is ...
-.env
+# ─── Virtual environment ──────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+
+# ─── Temp / scratch scripts ───────────────────────────────────────────────────
+make_test_100.py
+check_submission.py
+
+# ─── IDE ──────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Node / Frontend ──────────────────────────────────────────────────────────
+node_modules/
+frontend/.next/
+frontend/dist/
+frontend/build/

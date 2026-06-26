@@ -10,6 +10,7 @@ import {
     Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { createClient } from '@/utils/supabase/client';
 
 interface FileUploadProps {
     onUploadComplete?: () => void;
@@ -60,6 +61,12 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
         files.forEach(f => formData.append('files', f));
 
         try {
+            const supabase = createClient();
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user?.id) {
+                formData.append('user_id', session.user.id);
+            }
+
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
             const res = await fetch(`${apiUrl}/api/candidates/upload`, {
                 method: 'POST',

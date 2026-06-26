@@ -290,11 +290,16 @@ export default function RankPage() {
     localStorage.removeItem('talentIntelCache_compare');
 
     try {
+      const { createClient } = await import('@/utils/supabase/client');
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       const payloadText = jdToUse || `Senior Software Engineer with 5+ years in Golang and React.`;
       const res = await fetch(`${apiUrl}/api/jd/match`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: payloadText, is_custom: isCustom })
+        body: JSON.stringify({ text: payloadText, is_custom: isCustom, user_id: userId })
       });
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();

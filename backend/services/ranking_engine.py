@@ -163,8 +163,8 @@ class RankingEngine:
                     )
                 )
 
-        # 4. Sort ranked candidates (highest final_score first)
-        ranked_list.sort(key=lambda x: x.final_score, reverse=True)
+        # 4. Sort ranked candidates (highest final_score first, candidate_id ascending as tie-breaker)
+        ranked_list.sort(key=lambda x: (-x.final_score, x.candidate_id))
 
         # 5. Populate ranks, explanations, and hidden gem flags
         candidate_map = {c.candidate_id: c for c in candidates}

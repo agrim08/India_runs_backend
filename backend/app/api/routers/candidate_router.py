@@ -72,8 +72,14 @@ async def compare_candidates(req: ComparisonRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+from typing import List, Optional
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+
 @router.post("/upload")
-async def upload_resumes(files: List[UploadFile] = File(...)):
+async def upload_resumes(
+    files: List[UploadFile] = File(...),
+    user_id: Optional[str] = Form(None)
+):
     """
     Parses PDF resumes, generates embeddings, and stores them as Custom Data.
     """
@@ -94,12 +100,16 @@ async def upload_resumes(files: List[UploadFile] = File(...)):
             embedding = await generate_embeddings(md_text)
             
             # Upsert into supabase
-            supabase.table("candidates").upsert({
+            insert_data = {
                 "candidate_id": cand_id,
                 "profile_data": profile_data,
                 "embedding": embedding,
                 "is_custom": True
-            }).execute()
+            }
+            if user_id:
+                insert_data["user_id"] = user_id
+                
+            supabase.table("candidates").upsert(insert_data).execute()
             
             results.append({"filename": file.filename, "candidate_id": cand_id, "status": "success"})
         except Exception as e:

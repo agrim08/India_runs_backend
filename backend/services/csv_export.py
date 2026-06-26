@@ -130,3 +130,75 @@ class CSVExporter:
 
         logger.info(f"Successfully exported ranking CSV to: {output_filepath}")
         return os.path.abspath(output_filepath)
+
+    @classmethod
+    def export_to_submission_stream(
+        cls,
+        ranked_candidates: List[RankedCandidate],
+        candidates_map: Dict[str, Candidate],
+        top_n: int = 100
+    ) -> io.StringIO:
+        """
+        Generates submission-compliant CSV content in-memory as a StringIO stream.
+        """
+        output = io.StringIO()
+        writer = csv.writer(output, lineterminator='\n')
+        
+        # Write header: candidate_id,rank,score,reasoning
+        writer.writerow(["candidate_id", "rank", "score", "reasoning"])
+
+        # Slice to top_n
+        export_list = ranked_candidates[:top_n]
+
+        # Process and write rows
+        for rank_idx, rc in enumerate(export_list, start=1):
+            candidate = candidates_map.get(rc.candidate_id)
+            if not candidate:
+                logger.warning(f"Candidate {rc.candidate_id} not found in map. Skipping submission row.")
+                continue
+
+            try:
+                # Scale final score to [0.0, 1.0] from [0.0, 100.0]
+                scaled_score = round(rc.final_score / 100.0, 4)
+                
+                title = candidate.profile.current_title or "Professional"
+                yoe = candidate.profile.years_of_experience or 0.0
+                skills_count = len(rc.matched_skills)
+                resp_rate = candidate.redrob_signals.recruiter_response_rate if candidate.redrob_signals else 0.0
+
+                reasoning = f"{title} with {yoe:.1f} yrs; {skills_count} matched skills; response rate {resp_rate:.2f}."
+
+                row = [
+                    rc.candidate_id,
+                    rank_idx,
+                    f"{scaled_score:.4f}",
+                    reasoning
+                ]
+                writer.writerow(row)
+            except Exception as e:
+                logger.error(f"Failed exporting submission row for candidate {rc.candidate_id}: {e}")
+
+        # Reset stream position to beginning
+        output.seek(0)
+        return output
+
+    @classmethod
+    def export_to_submission_file(
+        cls,
+        ranked_candidates: List[RankedCandidate],
+        candidates_map: Dict[str, Candidate],
+        output_filepath: str,
+        top_n: int = 100
+    ) -> str:
+        """
+        Generates submission-compliant CSV and writes it to the filesystem.
+        """
+        stream = cls.export_to_submission_stream(ranked_candidates, candidates_map, top_n)
+        
+        os.makedirs(os.path.dirname(os.path.abspath(output_filepath)), exist_ok=True)
+
+        with open(output_filepath, "w", encoding="utf-8") as f:
+            f.write(stream.getvalue())
+
+        logger.info(f"Successfully exported submission CSV to: {output_filepath}")
+        return os.path.abspath(output_filepath)

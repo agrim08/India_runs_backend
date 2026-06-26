@@ -10,7 +10,6 @@ from backend.services.career_parser import CareerSummary, extract_from_candidate
 from backend.services.skills_extractor import SkillsExtractor
 
 logger = logging.getLogger(__name__)
-print(">>> LOADED candidates.py <<<")
 
 router = APIRouter(prefix="/candidates", tags=["Candidates"])
 
