@@ -16,7 +16,7 @@ team_members:
 
 github_repo: "https://github.com/agrim08/AI-Candidate-Ranker"
 
-sandbox_link: ""  # Add your sandbox link here if you are hosting one (e.g. HuggingFace Spaces)
+sandbox_link: "https://colab.research.google.com/drive/1UK7vfsiCCCBeEQzoDDPkqzLZnb7jkGb3?usp=sharing"
 
 reproduce_command: "python rank.py --candidates ./candidates.jsonl --out ./submission.csv"
 
