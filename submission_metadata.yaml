@@ -14,7 +14,7 @@ team_members:
     role: "Full Stack Developer"
 
 
-github_repo: "https://github.com/agrim08/India_runs_backend"
+github_repo: "https://github.com/agrim08/AI-Candidate-Ranker"
 
 sandbox_link: ""  # Add your sandbox link here if you are hosting one (e.g. HuggingFace Spaces)
 
@@ -24,13 +24,12 @@ compute:
   platform: "Windows 11 PC"                    
   cpu_cores: 8                                  
   ram_gb: 16                                    
-  python_version: "3.11"                      
+  python_version: "3.11"
   os: "Windows 11"                              
   uses_gpu_for_inference: false                 
   has_network_during_ranking: false             
   pre_computation_required: false               
   pre_computation_time_minutes: 0               
-
 
 
 ai_tools_used:
@@ -39,7 +38,7 @@ ai_tools_used:
   
 
 ai_usage_summary: |
-  Used Google Antigravity (Gemini 2.5) and Claude for code generation, system design, and debugging. Used for building the offline ranking pipeline, designing the penalty constraints (honeypot/consulting), and creating the frontend React components. No candidate data was fed to any LLM during the offline ranking pipeline.
+  Used Google Antigravity (Gemini 3.1 pro) and Claude Sonnet 4.6 for code generation, system design, and debugging. Used for building the offline ranking pipeline, designing the penalty constraints (honeypot/consulting), and creating the frontend React components. No candidate data was fed to any LLM during the offline ranking pipeline.
 
 
 methodology_summary: |

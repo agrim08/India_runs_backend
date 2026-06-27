@@ -32,8 +32,7 @@ class SemanticMatchEngine:
                 "query_embedding": jd_embedding,
                 "match_threshold": threshold,
                 "match_count": top_k,
-                "p_is_custom": is_custom,
-                "p_user_id": user_id
+                "p_is_custom": is_custom
             }).execute()
 
             logger.debug(f"RPC match_candidates returned {len(response.data)} results.")
