@@ -51,15 +51,15 @@ graph TD
 - **Mode 1 (Copilot):** Gemini 2.5 Flash + `gemini-embedding-2` (3072-dim) + Supabase pgvector. High-quality, cloud-native, for live recruiter use.
 - **Mode 2 (Offline):** `all-MiniLM-L6-v2` via `sentence-transformers`, fully local, batch-encoded, no internet required.
 
-### 2. Why `all-MiniLM-L6-v2` for offline ranking?
+### 2. Why a Two-Stage Pipeline for Offline Ranking?
 
-**Decision:** Chose `all-MiniLM-L6-v2` as the offline embedding model instead of larger alternatives.
+**Decision:** We implemented a Two-Stage Hybrid Retrieval pipeline instead of encoding all 100,000 candidates with a transformer model.
 
 **Why:**
-- **Speed:** Encodes ~1,000–3,000 texts/second on CPU. At `batch_size=128`, 100K candidates finish in ~1–3 minutes — well within the 5-minute wall-clock constraint.
-- **Size:** 90 MB on disk, under the 5 GB disk state limit.
-- **Quality:** Despite being small (22M params), it produces competitive 384-dim embeddings for our use case — distinguishing ML engineers from project managers from the same text.
-- **Offline:** Pre-cached in the Docker image at build time. Zero network at ranking time.
+- **Speed (The 5-minute constraint):** Running `all-MiniLM-L6-v2` on 100K candidates takes ~75 minutes on a CPU. 
+- **Stage 1 (Deterministic Fast Pass):** We parse all 100K candidates and score them purely on structured data (Skill mapping, Experience, Honeypot/Consulting/Availability modifiers). This takes just seconds.
+- **Stage 2 (Semantic Deep Dive):** We filter down to the Top 3,000 candidates and ONLY run the `sentence-transformers` embedding on them to extract deep JD context.
+- **Result:** The entire pipeline finishes in **~2.8 minutes**, well within the 5-minute hackathon constraint, while still leveraging the full semantic power of `all-MiniLM-L6-v2` for the top contenders.
 
 ### 3. Why a Multi-Signal Scoring Formula?
 
@@ -133,10 +133,13 @@ The offline ranking pipeline satisfies all submission constraints:
 ### Local (Python)
 
 ```bash
-# Install offline dependencies
+# Install offline dependencies (Requires Network)
 pip install -r requirements-rank.txt
 
-# Run — produces submission.csv
+# Pre-download the semantic model to your machine cache (Requires Network)
+python cache_model.py
+
+# Run — produces submission.csv (Strictly Offline / No Network)
 python rank.py --candidates ./candidates.jsonl --out ./submission.csv
 
 # Validate
