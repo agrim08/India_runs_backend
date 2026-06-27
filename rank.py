@@ -576,83 +576,100 @@ def load_candidates(path: str) -> List[Dict[str, Any]]:
 
 def rank_candidates(candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Core ranking pipeline. Returns list of result dicts sorted by final_score.
+    Core ranking pipeline. Uses a Two-Stage Hybrid Retrieval approach to finish in < 5 mins.
+    Stage 1: Fast deterministic scoring (Skill + Experience + Penalties) on all 100K candidates.
+    Stage 2: Heavy semantic embedding only on the Top 3,000 from Stage 1.
     """
-    from sentence_transformers import SentenceTransformer  # local import to keep top-level clean
-
-    logger.info("Loading sentence-transformer model (all-MiniLM-L6-v2) on CPU...")
-    model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
-
-    # 1. Encode JD
-    logger.info("Encoding job description...")
-    jd_embedding = model.encode(JD_TEXT, convert_to_numpy=True, show_progress_bar=False)
-    jd_norm = np.linalg.norm(jd_embedding)
-    if jd_norm > 0:
-        jd_embedding = jd_embedding / jd_norm  # L2 normalize
-
-    # 2. Encode all candidates in batches
-    logger.info(f"Encoding {len(candidates)} candidates in batches...")
-    candidate_texts = [build_candidate_text(c) for c in candidates]
-    candidate_embeddings = model.encode(
-        candidate_texts,
-        batch_size=128,
-        show_progress_bar=True,
-        convert_to_numpy=True,
-        normalize_embeddings=True,  # L2 normalize during encoding
-    )
-
-    # 3. Compute cosine similarities (dot product since both are L2-normalized)
-    logger.info("Computing cosine similarities...")
-    similarities = candidate_embeddings @ jd_embedding  # shape: (N,)
-
-    # 4. Score every candidate
-    results = []
+    logger.info(f"Stage 1: Running fast deterministic scoring on {len(candidates)} candidates...")
+    
+    stage1_results = []
     for i, candidate in enumerate(candidates):
         cid = candidate.get("candidate_id", f"UNKNOWN_{i}")
-
-        # Semantic score [0, 100]: cosine sim scaled (cosine ∈ [0,1] for normalized vecs)
-        semantic_score = float(max(0.0, similarities[i])) * 100.0
-
+        
         # Skill match score [0, 100]
         skill_score, matched_groups, ai_skill_count = compute_skill_score(candidate)
-
+        
         # Experience score [0, 100]
         experience_score = compute_experience_score(candidate)
-
-        # Weighted base score
-        # Weights: 40% semantic, 35% skill, 25% experience
-        base_score = (
-            (0.40 * semantic_score)
-            + (0.35 * skill_score)
-            + (0.25 * experience_score)
-        )
-
+        
         # Modifiers
         honeypot_mult = compute_honeypot_penalty(candidate)
         consulting_mult = compute_consulting_multiplier(candidate)
         redrob = candidate.get("redrob_signals", {})
         avail_mult, avail_note = compute_availability_multiplier(redrob)
-
-        # Final composite score (multipliers stack multiplicatively)
-        final_score = base_score * honeypot_mult * consulting_mult * avail_mult
-        final_score = round(max(0.0, min(100.0, final_score)), 4)
-
-        is_honeypot = honeypot_mult < 0.60
-
-        reasoning = build_reasoning(
-            candidate, ai_skill_count, avail_note, is_honeypot, consulting_mult
-        )
-
-        results.append({
+        
+        # Stage 1 Pre-score (approximating without semantic)
+        pre_score = (0.60 * skill_score + 0.40 * experience_score) * honeypot_mult * consulting_mult * avail_mult
+        
+        stage1_results.append({
+            "candidate": candidate,
             "candidate_id": cid,
+            "skill_score": skill_score,
+            "experience_score": experience_score,
+            "honeypot_mult": honeypot_mult,
+            "consulting_mult": consulting_mult,
+            "avail_mult": avail_mult,
+            "avail_note": avail_note,
+            "ai_skill_count": ai_skill_count,
+            "pre_score": pre_score
+        })
+    
+    # Sort by pre-score and slice top 3000
+    stage1_results.sort(key=lambda x: (-x["pre_score"], x["candidate_id"]))
+    top_candidates = stage1_results[:3000]
+    
+    logger.info(f"Stage 2: Filtered down to Top {len(top_candidates)}. Starting heavy semantic encoding...")
+    from sentence_transformers import SentenceTransformer
+    
+    model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
+    
+    # Encode JD
+    jd_embedding = model.encode(JD_TEXT, convert_to_numpy=True, show_progress_bar=False)
+    jd_norm = np.linalg.norm(jd_embedding)
+    if jd_norm > 0:
+        jd_embedding = jd_embedding / jd_norm
+
+    # Encode Top candidates
+    candidate_texts = [build_candidate_text(c["candidate"]) for c in top_candidates]
+    candidate_embeddings = model.encode(
+        candidate_texts,
+        batch_size=128,
+        show_progress_bar=True,
+        convert_to_numpy=True,
+        normalize_embeddings=True,
+    )
+    
+    similarities = candidate_embeddings @ jd_embedding
+    
+    final_results = []
+    for i, res in enumerate(top_candidates):
+        semantic_score = float(max(0.0, similarities[i])) * 100.0
+        
+        base_score = (
+            (0.40 * semantic_score)
+            + (0.35 * res["skill_score"])
+            + (0.25 * res["experience_score"])
+        )
+        
+        final_score = base_score * res["honeypot_mult"] * res["consulting_mult"] * res["avail_mult"]
+        final_score = round(max(0.0, min(100.0, final_score)), 4)
+        
+        is_honeypot = res["honeypot_mult"] < 0.60
+        reasoning = build_reasoning(
+            res["candidate"], res["ai_skill_count"], res["avail_note"], 
+            is_honeypot, res["consulting_mult"]
+        )
+        
+        final_results.append({
+            "candidate_id": res["candidate_id"],
             "raw_score": final_score,
             "reasoning": reasoning,
         })
 
-    # 5. Sort: descending score, ascending candidate_id for tie-break
-    results.sort(key=lambda x: (-x["raw_score"], x["candidate_id"]))
+    # Sort final top candidates
+    final_results.sort(key=lambda x: (-x["raw_score"], x["candidate_id"]))
 
-    return results
+    return final_results
 
 
 def normalize_scores(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
