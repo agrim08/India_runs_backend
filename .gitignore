@@ -3,6 +3,14 @@ data/candidates.jsonl
 data/candidates.jsonl.gz
 data/test_submission.csv
 data/test_candidates_100.json
+# Organizer-provided bundle files (not re-distributed)
+data/README.docx
+data/candidate_schema.json
+data/job_description.docx
+data/redrob_signals_doc.docx
+data/sample_submission.csv
+data/submission_metadata_template.yaml
+data/submission_spec.docx
 
 # ─── Secrets ──────────────────────────────────────────────────────────────────
 .env
