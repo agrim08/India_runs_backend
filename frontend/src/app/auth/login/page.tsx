@@ -8,7 +8,9 @@ import { BrainCircuit } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
-export default function LoginPage() {
+import { Suspense } from 'react'
+
+function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -91,5 +93,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   )
 }
